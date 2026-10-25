@@ -23,6 +23,18 @@
 
 An LLM (Gemini, OpenAI or Claude, chosen in the UI) only writes the human-readable explanation. **It cannot change a trade decision or move a price level.**
 
+## Screenshots
+
+Captured from a fresh install in PAPER mode with no broker connected, so the terminal shows its honest empty state: the app never fabricates prices.
+
+| Create the encrypted vault | Trading terminal |
+| :-: | :-: |
+| ![Vault setup](docs/screenshots/01-vault-setup.png) | ![Trading terminal](docs/screenshots/02-terminal.png) |
+
+| Configuration | Choose the AI provider and model |
+| :-: | :-: |
+| ![Settings](docs/screenshots/04-settings.png) | ![AI provider settings](docs/screenshots/03-ai-provider.png) |
+
 ## Design principles
 
 | Principle | How it is enforced |

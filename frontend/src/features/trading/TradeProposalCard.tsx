@@ -43,10 +43,10 @@ export const TradeProposalCard: React.FC<TradeProposalCardProps> = ({
           <Sparkles size={28} color="var(--color-cyan)" />
         </div>
         <h3 style={{ fontSize: "18px", fontWeight: 700, marginBottom: "8px" }}>
-          Gemini High-Spec Market Scanner
+          Rules-Based Market Scanner
         </h3>
         <p style={{ color: "var(--text-muted)", fontSize: "14px", maxWidth: "480px", margin: "0 auto 20px auto" }}>
-          Let Gemini analyze live EMA crosses, VWAP, RSI, and ATR levels on <strong>{selectedSymbol}</strong> to find the highest-conviction Call/Put intraday setup.
+          Run the multi-factor rules engine (EMA ribbon, Supertrend, VWAP, ADX, RSI, CPR) on <strong>{selectedSymbol}</strong> to look for a high-conviction intraday setup. An AI model only explains the result.
         </p>
         <button
           onClick={() => (onTriggerScan || onTriggerManualScan)?.(selectedSymbol)}
@@ -55,7 +55,7 @@ export const TradeProposalCard: React.FC<TradeProposalCardProps> = ({
           style={{ padding: "12px 28px", fontSize: "15px" }}
         >
           <Sparkles size={18} />
-          <span>{isScanning ? `Analyzing ${selectedSymbol}...` : `Scan ${selectedSymbol} with Gemini`}</span>
+          <span>{isScanning ? `Analyzing ${selectedSymbol}...` : `Scan ${selectedSymbol}`}</span>
         </button>
       </div>
     );
@@ -196,7 +196,7 @@ export const TradeProposalCard: React.FC<TradeProposalCardProps> = ({
               onClick={() => onReplayAudio(proposal.verbal_pitch || "")}
               className="btn btn-secondary"
               style={{ padding: "4px 8px", fontSize: "11px" }}
-              title="Hear Gemini repeat this trade setup"
+              title="Hear this trade setup again"
             >
               Replay Voice
             </button>

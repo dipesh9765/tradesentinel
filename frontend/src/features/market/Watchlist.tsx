@@ -103,7 +103,7 @@ export const Watchlist: React.FC<WatchlistProps> = ({
                     borderRadius: "6px",
                     borderColor: isSelected ? "var(--border-glow)" : undefined
                   }}
-                  title={`Scan ${quote.symbol} with Gemini`}
+                  title={`Scan ${quote.symbol}`}
                 >
                   <Sparkles size={13} color="var(--color-cyan)" />
                 </button>

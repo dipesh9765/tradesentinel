@@ -351,7 +351,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           onClick={onOpenSettings}
           className="btn btn-secondary"
-          title="Configure Zerodha Kite, Gemini, and Notification Webhooks"
+          title="Configure Zerodha Kite, the AI provider, and notification webhooks"
           style={{ padding: "7px 12px" }}
         >
           <SettingsIcon size={15} />
