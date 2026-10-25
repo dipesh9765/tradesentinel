@@ -8,7 +8,7 @@ import pytest
 
 import ai_providers
 from trade_validation import validate_signal, is_option_instrument
-from gemini_analyzer import GeminiMarketAnalyzer
+from trade_analyzer import TradeAnalyzer
 from kite_executor import KiteExecutionEngine, UnifiedTradingEngine
 
 
@@ -108,18 +108,18 @@ ACTIONABLE = {
 
 
 def test_analyzer_never_trades_when_quant_says_no(monkeypatch):
-    import gemini_analyzer as ga
+    import trade_analyzer as ga
     monkeypatch.setattr(ga, "quant_engine", _FakeQuant({"actionable": False, "reason": "chop", "confluence_score": 40}))
     called = []
     monkeypatch.setattr(ai_providers, "generate_json", lambda *a, **k: called.append(1) or {})
     monkeypatch.setattr(ai_providers, "is_configured", lambda provider=None: True)
-    out = GeminiMarketAnalyzer().analyze_market_setup("BANK NIFTY", {"ltp": 52000}, None)
+    out = TradeAnalyzer().analyze_market_setup("BANK NIFTY", {"ltp": 52000}, None)
     assert out["actionable"] is False
     assert not called  # LLM is never consulted for a rejected setup
 
 
 def test_llm_cannot_move_price_levels(monkeypatch):
-    import gemini_analyzer as ga
+    import trade_analyzer as ga
     monkeypatch.setattr(ga, "quant_engine", _FakeQuant(dict(ACTIONABLE)))
     monkeypatch.setattr(ai_providers, "is_configured", lambda provider=None: True)
     monkeypatch.setattr(ai_providers, "get_active_provider", lambda: "openai")
@@ -129,7 +129,7 @@ def test_llm_cannot_move_price_levels(monkeypatch):
         "technical_rationale": "LLM rationale",
         "entry_price": 1, "stop_loss": 999,                         # ignored extras
     })
-    out = GeminiMarketAnalyzer().analyze_market_setup("BANK NIFTY", {"ltp": 52000}, None)
+    out = TradeAnalyzer().analyze_market_setup("BANK NIFTY", {"ltp": 52000}, None)
     assert out["entry_price"] == 200.0 and out["stop_loss"] == 180.0
     assert out["technical_rationale"] == "LLM rationale"
     assert out["verbal_pitch"] == ACTIONABLE["verbal_pitch"]       # mismatched pitch discarded
@@ -137,17 +137,17 @@ def test_llm_cannot_move_price_levels(monkeypatch):
 
 
 def test_llm_pitch_with_correct_levels_is_used(monkeypatch):
-    import gemini_analyzer as ga
+    import trade_analyzer as ga
     monkeypatch.setattr(ga, "quant_engine", _FakeQuant(dict(ACTIONABLE)))
     monkeypatch.setattr(ai_providers, "is_configured", lambda provider=None: True)
     monkeypatch.setattr(ai_providers, "generate_json", lambda *a, **k: {
         "verbal_pitch": "Buy the call at ₹200.00, stop-loss ₹180. Say Approve.", "technical_rationale": "ok"})
-    out = GeminiMarketAnalyzer().analyze_market_setup("BANK NIFTY", {"ltp": 52000}, None)
+    out = TradeAnalyzer().analyze_market_setup("BANK NIFTY", {"ltp": 52000}, None)
     assert out["verbal_pitch"].startswith("Buy the call")
 
 
 def test_llm_failure_falls_back_to_rule_text(monkeypatch):
-    import gemini_analyzer as ga
+    import trade_analyzer as ga
     monkeypatch.setattr(ga, "quant_engine", _FakeQuant(dict(ACTIONABLE)))
     monkeypatch.setattr(ai_providers, "is_configured", lambda provider=None: True)
 
@@ -155,15 +155,15 @@ def test_llm_failure_falls_back_to_rule_text(monkeypatch):
         raise ai_providers.AIProviderError("down")
 
     monkeypatch.setattr(ai_providers, "generate_json", boom)
-    out = GeminiMarketAnalyzer().analyze_market_setup("BANK NIFTY", {"ltp": 52000}, None)
+    out = TradeAnalyzer().analyze_market_setup("BANK NIFTY", {"ltp": 52000}, None)
     assert out["actionable"] is True and out["verbal_pitch"] == ACTIONABLE["verbal_pitch"]
 
 
 def test_invalid_quant_levels_become_no_trade(monkeypatch):
-    import gemini_analyzer as ga
+    import trade_analyzer as ga
     bad = dict(ACTIONABLE, stop_loss=210.0)
     monkeypatch.setattr(ga, "quant_engine", _FakeQuant(bad))
-    out = GeminiMarketAnalyzer().analyze_market_setup("BANK NIFTY", {"ltp": 52000}, None)
+    out = TradeAnalyzer().analyze_market_setup("BANK NIFTY", {"ltp": 52000}, None)
     assert out["actionable"] is False
 
 
@@ -538,3 +538,35 @@ def test_reconcile_reports_untracked_broker_positions(monkeypatch):
     monkeypatch.setattr(engine, "is_authenticated", lambda: True)
     monkeypatch.setattr(KiteExecutionEngine, "verify_outgoing_kite_request", lambda self: True)
     assert engine.reconcile_live_positions()["untracked_at_broker"] == ["SOMETHINGELSE"]
+
+
+# --------------------------------------------------------------------------- hardening
+
+def test_login_is_throttled_after_repeated_failures():
+    from fastapi.testclient import TestClient
+    import database
+    import security
+    from main import app
+
+    if not database.is_master_password_set():
+        database.setup_master_password("TestMasterKey123!")
+    client = TestClient(app)
+    security.clear_login_failures("testclient")
+    try:
+        for _ in range(security.MAX_LOGIN_FAILURES):
+            assert client.post("/api/auth/login", json={"password": "wrong-password"}).status_code == 401
+        locked = client.post("/api/auth/login", json={"password": "wrong-password"})
+        assert locked.status_code == 429 and "Retry-After" in locked.headers
+        # even the correct password is refused while locked out
+        assert client.post("/api/auth/login", json={"password": "TestMasterKey123!"}).status_code == 429
+    finally:
+        security.clear_login_failures("testclient")
+    ok = client.post("/api/auth/login", json={"password": "TestMasterKey123!"})
+    assert ok.status_code == 200
+
+
+def test_single_settings_instance_and_instruments_file():
+    import config
+    import app.config as app_config
+    assert app_config.settings is config.settings
+    assert app_config.load_instruments_data() == config.load_instruments_data()

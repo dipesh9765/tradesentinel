@@ -1,13 +1,14 @@
-fastapi>=0.110.0
-uvicorn[standard]>=0.28.0
-pydantic>=2.6.0
-pydantic-settings>=2.2.0
-python-dotenv>=1.0.0
-kiteconnect>=5.0.0
-google-genai>=0.1.1
-pandas>=2.2.0
-numpy>=1.26.0
-websockets>=12.0
-httpx>=0.27.0
-pytest>=8.0.0
-cryptography>=42.0.0
+# Tested versions. Python 3.11+.
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+pydantic==2.13.5
+pydantic-settings==2.15.0
+python-dotenv==1.2.3
+kiteconnect==5.2.1
+google-genai==2.23.0
+pandas==3.0.5
+numpy==2.5.3
+websockets==16.1.1
+httpx==0.28.1
+cryptography==50.0.1
+pytest==9.1.1

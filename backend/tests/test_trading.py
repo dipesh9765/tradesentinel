@@ -4,7 +4,7 @@ import numpy as np
 from technical_indicators import calculate_ema, calculate_rsi, calculate_vwap, calculate_atr, enrich_candle_indicators
 from config import settings
 from market_data import MarketDataManager
-from gemini_analyzer import GeminiMarketAnalyzer
+from trade_analyzer import TradeAnalyzer
 from kite_executor import KiteTradingExecutor, OrderStatus
 
 def test_indicators():
@@ -43,7 +43,7 @@ def test_market_data_manager_unconfigured_no_dummy_data():
 
 def test_analyzer_returns_no_trade_without_data():
     """With no market data the analyzer must stand aside, never invent a trade."""
-    analyzer = GeminiMarketAnalyzer()
+    analyzer = TradeAnalyzer()
     analyzer.client = None
 
     mdm = MarketDataManager()

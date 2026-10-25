@@ -96,3 +96,6 @@ desktop.ini
 *.swp
 *.swo
 *~
+
+# Editor-specific settings
+.vscode/

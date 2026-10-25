@@ -1,332 +1,160 @@
-# KitePulse AI — Technical System Architecture & Engineering Design
+# Architecture
 
-This document details the architectural design, concurrency models, data flows, and security protocols implemented within **KitePulse AI**. It serves as the authoritative technical reference for system design reviews, audits, and architectural evaluations.
+This document explains how KitePulse AI is put together and, more importantly, why. It matches the code in this repository.
 
----
+## 1. Goals
 
-## 1. Architectural Principles & Patterns
+1. **Never let a bug or a model hallucination place a bad order.** Decisions come from deterministic rules; everything else is validation and guard rails.
+2. **Keep the same logic in live trading and in the backtest.**
+3. **Stay recoverable.** A crash, restart or lost connection must not leave an unprotected or mis-tracked position.
+4. **Keep secrets encrypted at rest** without requiring any infrastructure.
 
-The architecture of KitePulse AI is built upon proven software engineering principles:
-
-```
-+-----------------------------------------------------------------------------------+
-|                              ARCHITECTURAL PATTERNS                               |
-+--------------------------+----------------------------+---------------------------+
-|      STRATEGY PATTERN    |      REPOSITORY PATTERN    |      ADAPTER PATTERN      |
-| BaseOrderExecutor        | TradingRepository          | KiteExecutionEngine       |
-| isolates Paper & Live    | isolates SQLite & ACID     | isolates Zerodha Kite SDK |
-| execution behaviors      | persistence operations     | from core business logic  |
-+--------------------------+----------------------------+---------------------------+
-```
-
-1. **Dependency Inversion Principle (DIP)**: High-level trading modules do not depend directly on low-level broker SDKs. Both depend on abstract contracts defined in `core.interfaces`.
-2. **Single Responsibility Principle (SRP)**:
-   - `MarketDataManager`: Handles quote ingestion and candle enrichment.
-   - `GeminiMarketAnalyzer`: Generates trade proposals via LLM or quantitative math.
-   - `UnifiedTradingEngine`: Manages position lifecycles, triggers, and order routing.
-   - `TradingRepository`: Encapsulates database transactions and schema queries.
-   - `server_logger`: Enforces audit logging and credential sanitization.
-3. **Defense in Depth**: Zero plaintext credentials on disk, 30-second token verification heartbeats, constant-time hash comparisons, and strict execution guardrails.
-
----
-
-## 2. Core Subsystems & Interfaces
+## 2. Component map
 
 ```mermaid
-classDiagram
-    class BaseOrderExecutor {
-        <<interface>>
-        +mode: str
-        +execute_order(proposal, lot_size) Dict
-        +close_position(position_id, reason) Dict
-        +verify_session() Dict
-    }
-    
-    class PaperExecutionEngine {
-        -paper_balance: float
-        -positions: Dict
-        -orders_history: List
-        +execute_order(proposal, lot_size) Dict
-        +close_position(position_id, reason) Dict
-        +update_pnl(live_prices) List
-    }
-    
-    class KiteExecutionEngine {
-        -kite_client: KiteConnect
-        -last_verification_time: float
-        +verify_session() Dict
-        +verify_outgoing_kite_request() bool
-        +execute_order(proposal, lot_size) Dict
-        +close_position(position_id, reason) Dict
-    }
-    
-    class UnifiedTradingEngine {
-        +mode: str
-        +paper_engine: PaperExecutionEngine
-        +kite_engine: KiteExecutionEngine
-        +positions: Dict
-        +create_trade_proposal(signal) Dict
-        +approve_trade(proposal_id) Dict
-        +reject_trade(proposal_id, reason) Dict
-        +update_positions_pnl(live_prices) void
-    }
-
-    BaseOrderExecutor <|.. PaperExecutionEngine
-    BaseOrderExecutor <|.. KiteExecutionEngine
-    UnifiedTradingEngine o-- PaperExecutionEngine
-    UnifiedTradingEngine o-- KiteExecutionEngine
+flowchart TB
+    subgraph Client
+        UI[React 19 terminal]
+    end
+    subgraph Backend[FastAPI process]
+        API[Routers /api/v1]
+        W1[Market worker 2s]
+        W2[Token heartbeat 30s]
+        W3[Scanner 12s]
+        Engine[UnifiedTradingEngine]
+        Analyzer[TradeAnalyzer]
+        Rules[quant_strategy]
+        Val[trade_validation]
+        Exit[exit_rules]
+        AI[ai_providers]
+        MD[market_data]
+        BT[backtester]
+        DB[(SQLite WAL)]
+        Vault[security: PBKDF2 + Fernet]
+    end
+    UI <-->|REST + WS| API
+    API --> Engine & Analyzer & BT
+    Analyzer --> Rules & Val
+    Analyzer -.-> AI
+    Engine --> Exit & Val
+    BT --> Rules & Exit & Val
+    W1 --> MD & Engine
+    W3 --> Analyzer & Engine
+    Engine --> DB
+    DB --- Vault
+    Engine --> Paper[PaperExecutionEngine]
+    Engine --> Kite[KiteExecutionEngine]
 ```
 
-### 2.1 Execution Strategy Layer
-- **`PaperExecutionEngine`**: Implements realistic fill simulation, local balance updates, and isolated virtual position tracking without making external network calls.
-- **`KiteExecutionEngine`**: Manages Zerodha KiteConnect SDK bindings, exchanges OAuth tokens, handles transaction types (`MIS` Intraday, `NSE` / `NFO`), and tracks order statuses.
-- **`UnifiedTradingEngine`**: Orchestrates active strategy selection based on `settings.TRADING_MODE`, maintaining persistent position state and coordinating stop-loss / take-profit triggers.
+| Module | Responsibility |
+| :-- | :-- |
+| `app/main.py` | App factory, CORS, request-audit middleware, lifespan that starts and cancels the background workers |
+| `app/api/v1/endpoints/*` | Thin HTTP layer: auth, market, trades, settings, backtest, websocket |
+| `quant_strategy.py` | The rules engine. Pure function of candles + quote: returns actionable setup with levels, or `NO_TRADE` with a reason |
+| `trade_validation.py` | Pure checks on any signal: level ordering, stop distance, minimum risk-reward, option-label detection |
+| `trade_analyzer.py` | Calls the rules engine, validates, then optionally asks the LLM for wording. Never lets the LLM alter numbers |
+| `ai_providers.py` | One function, `generate_json`, over Gemini / OpenAI / Anthropic. Provider, model and keys are read from the vault on every call |
+| `exit_rules.py` | Stop, target and three-tier trailing logic. One pure function used by both live and backtest |
+| `kite_executor.py` | `KiteExecutionEngine` (broker adapter) and `UnifiedTradingEngine` (orchestration, risk limits, reconciliation) |
+| `core/paper_executor.py` | Simulated fills with a virtual balance |
+| `core/interfaces.py` | Abstract contracts so brokers, data feeds and analyzers can be swapped |
+| `backtester.py` | Replays candles through the same rules and exits, with costs |
+| `market_data.py` | Quote polling, candle fetch, indicator enrichment (`technical_indicators.py`) |
+| `security.py`, `database.py` | Key derivation, encryption, sessions, login throttling, repository layer |
 
----
-
-## 3. Concurrency & Lifespan Architecture
-
-KitePulse AI utilizes FastAPI's modern `lifespan` context manager, replacing deprecated event handlers with an asynchronous lifecycle pipeline:
+## 3. From signal to order
 
 ```mermaid
 sequenceDiagram
-    participant OS as ASGI Server (Uvicorn)
-    participant LS as FastAPI Lifespan
-    participant MW as Market Sync Worker (2s Loop)
-    participant TW as 30s Token Heartbeat Worker
-    participant WS as WebSocket Clients
+    participant S as Scanner / Scan button
+    participant A as TradeAnalyzer
+    participant R as Rules engine
+    participant V as Validator
+    participant L as LLM (optional)
+    participant U as User
+    participant E as Trading engine
+    participant K as Zerodha
 
-    OS->>LS: Server Startup Event
-    activate LS
-    LS->>MW: asyncio.create_task(background_market_worker)
-    LS->>TW: asyncio.create_task(periodic_30s_token_verification_worker)
-    LS-->>OS: Yield (Serving Requests)
-    
-    loop Every 2 Seconds
-        MW->>MW: refresh_live_quotes()
-        MW->>MW: update_positions_pnl()
-        MW->>WS: Broadcast TICK JSON Payload
-    end
-
-    loop Every 30 Seconds
-        TW->>TW: verify_auth_token_now()
-        TW->>TW: Ping Zerodha Profile API
-    end
-
-    OS->>LS: Server Shutdown Event
-    LS->>MW: Task.cancel()
-    LS->>TW: Task.cancel()
-    LS-->>OS: Terminate Cleanly
-    deactivate LS
+    S->>A: analyze(symbol, quote, candles)
+    A->>R: evaluate
+    R-->>A: setup or NO_TRADE
+    A->>V: validate levels and risk-reward
+    A->>L: explain this fixed trade (optional)
+    L-->>A: pitch + rationale
+    A-->>S: signal (levels from rules only)
+    S->>E: create proposal (validated again)
+    U->>E: approve within 60s
+    E->>E: expiry, daily loss, trade cap, loss-streak pause, slippage
+    E->>K: LIMIT entry (real contract, real lot size)
+    E->>K: poll until filled, else cancel
+    E->>K: place broker-side SL order
+    Note over E,K: if the SL cannot be placed, flatten immediately
 ```
 
-### Concurrency Guarantees:
-- **Non-blocking I/O**: Heavy synchronous computations (such as PBKDF2 hashing) are offloaded to worker threads via Starlette's threadpool.
-- **Task Isolation**: Background polling routines run in detached `asyncio` tasks with structured error logging, preventing background exceptions from bubbling up to terminate the web server.
+Guards in `approve_trade` run **server-side**, so a modified client cannot bypass them. They run in this order: proposal state and expiry, daily loss circuit breaker, trade cap and loss-streak pause (`_check_trading_limits`), price drift from the proposed entry (`_check_entry_drift`), and finally "LIVE selected but broker not connected" is an error, never a silent paper fill.
 
----
+## 4. Live order lifecycle
 
-## 4. Cryptographic Security Vault
+The part of the system where mistakes cost real money, so it is written defensively.
 
-Credentials (Kite API Key/Secret, Access Token, Gemini API Key) are never stored in plaintext on disk or in version control:
+- **Contract resolution.** Rules emit labels like `BANKNIFTY 52000 CE`. `resolve_nfo_contract` maps these to the real exchange tradingsymbol (nearest non-expired expiry) and the true lot size from Kite's instrument dump, cached per day. Order quantity is lots × lot size.
+- **Entry.** A LIMIT order at the approved price, rounded to the 0.05 tick. `_await_terminal` polls order history. If it has not filled within the timeout it is cancelled and re-checked, so a late fill cannot create a position the app does not know about. Partial fills use the actual filled quantity.
+- **Protection.** Immediately after a fill, an `SL` order is placed at the broker. Its trigger follows the software trailing stop via `modify_order` (`_sync_trailing_stop`). If placing it fails, `exit_position` flattens at once and the failure is reported.
+- **Exit.** `close_live` first inspects the protective stop. If it already filled, that fill is the exit and no new order is sent. Otherwise the stop is cancelled **and confirmed cancelled** before a market exit is sent, so two sells can never both execute. `exit_position` records its order id; a retry after a timeout inspects that order instead of placing another.
+- **Bookkeeping.** A position is marked closed only after the broker confirms. If confirmation fails, the exception propagates and the position stays open, to be retried on the next tick.
+- **Reconciliation.** Once per Kite session (and on demand at `/api/trade/reconcile`) tracked positions are compared with the broker's net positions. Positions already flat at the broker, for example because the stop fired while the app was offline, are booked at the stop's real fill price. Broker positions the app does not track are reported, not touched.
 
-```
-[Master Password] ---> PBKDF2-HMAC-SHA256 (100k rounds, 16B Salt) ---> Hex Hash (auth_config table)
-                                   |
-                      Master Key Salt (16B Salt)
-                                   |
-                                   v
-             [32-Byte Fernet Key Derived (In-Memory Only)]
-                                   |
-             +---------------------+---------------------+
-             |                                           |
-             v                                           v
-[Plaintext API Secret]                       [Encrypted Ciphertext Token]
-        |                                                |
-        +---> Fernet AES-128-CBC + HMAC-SHA256 --------->+ (secure_vault table)
-```
+## 5. Concurrency model
 
-### Security Measures:
-1. **Zero Plaintext Persistence**: If the database file (`trading.db`) is extracted, stored credentials cannot be decrypted without the user's master password.
-2. **Volatile In-Memory Key**: The derived Fernet key (`_unlocked_encryption_key`) is maintained strictly in memory and wiped upon logout or server shutdown.
-3. **Timing-Attack Resistance**: Master password verification employs `secrets.compare_digest` to prevent side-channel timing analysis.
-4. **Log Redaction**: `RequestResponseLoggingMiddleware` and `server_logger` sanitize dictionary payloads, stripping sensitive fields (`password`, `api_secret`, `access_token`) before writing to the 3MB rotating log files.
+- One asyncio event loop runs the HTTP server and three background tasks: market sync and P&L monitor (2 s), Kite token heartbeat (30 s), and the opportunity scanner (12 s).
+- Broker calls are blocking SDK calls, so the long ones (`approve_trade`, startup reconcile, backtests) are pushed to worker threads with `asyncio.to_thread`.
+- `UnifiedTradingEngine` holds a re-entrant lock around approvals and closes, so an auto-exit and a manual close cannot both send an exit order.
+- Trade-offs: shared in-memory dictionaries are guarded only where it matters most (order entry and exit). A production system would move position state behind a repository with transactions.
 
----
+## 6. Security
 
-## 5. Risk Management & Execution Guardrails
+- A **master password** is hashed with PBKDF2-HMAC-SHA256 (random 16-byte salt, constant-time compare) for verification.
+- A separate **Fernet key** is derived from the password with its own salt and held **only in memory** while unlocked. API keys, tokens and webhook URLs are encrypted with it before they touch SQLite. Logging out wipes the key.
+- Sessions are random 32-byte tokens held in memory with a fixed 24-hour lifetime. The WebSocket authenticates with the same token.
+- `POST /api/auth/login` is throttled: five failures lock the client out for 60 seconds.
+- The request-logging middleware redacts passwords, tokens and secrets from logs.
+- AI provider keys follow the same vault path as broker keys and are never returned by the API (only a masked preview).
 
-```
-                                [Market Setup Scanned]
-                                          |
-                                          v
-                              [AI / Quant Analysis]
-                                          |
-                                          v
-                           +------------------------------+
-                           |     TradeProposal Created    |
-                           |  - lot_size = 1 (LOCKED)     |
-                           |  - status = PENDING_APPROVAL |
-                           |  - expires_in = 60 seconds   |
-                           +------------------------------+
-                                          |
-                     +--------------------+--------------------+
-                     |                                         |
-          [Timeout > 60s OR Reject]                   [Human Confirms: 'Approve']
-                     |                                         |
-                     v                                         v
-            {PROPOSAL DISCARDED}                      {EXECUTE ORDER}
-                                                               |
-                                            +------------------+------------------+
-                                            |                                     |
-                                     (PAPER MODE)                            (LIVE MODE)
-                                            |                                     |
-                                            v                                     v
-                                 [PaperExecutionEngine]                 [Zerodha KiteConnect]
-                                 Virtual fill @ LTP                     MIS Market Order routed
-                                            |                                     |
-                                            +------------------+------------------+
-                                                               |
-                                                               v
-                                                    [Position Monitored (2s)]
-                                                               |
-                                            +------------------+------------------+
-                                            |                                     |
-                                     Current <= SL                         Current >= Target
-                                            |                                     |
-                                            v                                     v
-                                    {TRIGGERED_SL}                        {TRIGGERED_TARGET}
-                                    Auto Square-Off                       Auto Square-Off
-```
+**Known trade-offs:** 100,000 PBKDF2 iterations is below the current OWASP recommendation for SHA-256 (600,000); changing it needs a vault migration. The WebSocket token travels in the query string, which is convenient for browsers but can appear in access logs (the app masks it in its own logs).
 
-### Safety Guardrail Breakdown:
-1. **Strict 1-Lot Cap**: Enforces `min(proposal.lot_size, settings.MAX_LOT_SIZE)` where `MAX_LOT_SIZE = 1`. Eliminates the risk of oversized positions during system evaluation.
-2. **60-Second Human Approval**: AI trade proposals are never executed automatically. The user must provide verbal confirmation ("Approve") or click the confirmation button within 60 seconds.
-3. **Continuous Trailing SL / Target Triggers**: Positions are evaluated against incoming quotes every 2 seconds. When price action reaches or exceeds stop-loss or take-profit targets, an offsetting market order is routed immediately.
-4. **30-Second Token Verification Heartbeat**: The system re-validates that the active session and outbound broker tokens are healthy before routing any live transaction.
+## 7. Data model (SQLite, WAL mode)
 
----
+| Table | Purpose |
+| :-- | :-- |
+| `trade_suggestions` | Every proposal with its levels, rationale and final status (approved, rejected, expired) |
+| `positions` | Open and closed positions, including the broker symbol, protective-stop order id and exit order id for live trades |
+| `orders` | Immutable audit trail of entries and exits with fill prices |
+| `auth_config` | Password hash, salts, initialisation flag |
+| `secure_vault` | Fernet-encrypted key/value secrets |
 
-## 6. Mathematical Foundations of Quantitative Indicators
+Discipline limits are computed from `positions`, so they survive restarts. Schema changes are additive `ALTER TABLE` migrations at startup.
 
-All indicators in `technical_indicators.py` are vectorized via Pandas and NumPy:
+## 8. Backtester design
 
-### 6.1 Exponential Moving Average (EMA)
-$$\alpha = \frac{2}{N + 1}$$
-$$\text{EMA}_t = (\text{Price}_t \times \alpha) + (\text{EMA}_{t-1} \times (1 - \alpha))$$
-*Periods used: 9 (fast momentum), 21 (intraday trend), 50 (macro support/resistance).*
+`backtester.run_backtest` is deliberately thin: it feeds growing slices of the candle frame to `quant_engine.evaluate_quantitative_setup(..., as_of=bar_time)` and walks each trade forward with `exit_rules.check_exit_triggers`, so any change to the strategy or the exits is automatically reflected in both. Choices that avoid flattering the results:
 
-### 6.2 Relative Strength Index (RSI)
-$$\text{RS} = \frac{\text{SMA}(\text{Gains}, 14)}{\text{SMA}(\text{Losses}, 14)}$$
-$$\text{RSI} = 100 - \left(\frac{100}{1 + \text{RS}}\right)$$
-*Used to identify momentum divergences and overextended conditions (>70 overbought, <30 oversold).*
+- signals are formed on a bar's close and filled at the **next bar's open**;
+- when one bar touches both stop and target, the **stop is assumed first**;
+- gaps through a level exit at the open, not at the level;
+- Indian intraday costs and per-side slippage are charged on every trade;
+- the same trade cap, loss pause and post-loss lockout apply.
 
-### 6.3 Volume Weighted Average Price (VWAP)
-$$\text{Typical Price (TP)}_t = \frac{\text{High}_t + \text{Low}_t + \text{Close}_t}{3}$$
-$$\text{VWAP}_t = \frac{\sum_{i=1}^t (\text{TP}_i \times \text{Volume}_i)}{\sum_{i=1}^t \text{Volume}_i}$$
-*Serves as the benchmark for institutional intraday execution and directional bias.*
+Because the rules are fixed, the three-fold split measures *stability over time* rather than doing parameter optimisation, and the result warns when fewer than 30 trades make any conclusion meaningless.
 
-### 6.4 Average True Range (ATR)
-$$\text{TR}_t = \max(\text{High}_t - \text{Low}_t, |\text{High}_t - \text{Close}_{t-1}|, |\text{Low}_t - \text{Close}_{t-1}|)$$
-$$\text{ATR}_t = \text{SMA}(\text{TR}, 14)$$
-*Determines dynamic stop-loss offsets and target projections adapted to current market volatility.*
+## 9. Frontend
 
-### 6.5 Classic Floor Pivot Points
-$$\text{PP} = \frac{\text{High} + \text{Low} + \text{Close}}{3}$$
-$$\text{R1} = (2 \times \text{PP}) - \text{Low}, \quad \text{S1} = (2 \times \text{PP}) - \text{High}$$
-$$\text{R2} = \text{PP} + (\text{High} - \text{Low}), \quad \text{S2} = \text{PP} - (\text{High} - \text{Low})$$
+React 19 + TypeScript (strict), organised by feature (`auth`, `market`, `trading`, `settings`, `voice`). A single typed API client wraps `fetch` with the Bearer token and a global 401 handler. A WebSocket hook streams ticks with reconnect/backoff. Charts use TradingView Lightweight Charts. Voice commands use the browser Web Speech API.
 
----
+## 10. Testing
 
-## 7. Database Architecture & Indexing
+81 tests run in CI. Highlights:
 
-KitePulse AI operates an ACID-compliant SQLite embedded database utilizing **Write-Ahead Logging (WAL)**:
-
-```sql
-PRAGMA journal_mode = WAL;
-PRAGMA busy_timeout = 30000;
-```
-
-### Key Schema Entities:
-- **`trade_suggestions`**: Indexed on `proposal_id` (UNIQUE). Stores historical signals, confidence scores, verbal pitches, and technical rationales.
-- **`positions`**: Indexed on `position_id` (UNIQUE) with foreign key referencing `proposal_id`. Stores entry price, current LTP, stop-loss, targets, and realized/unrealized P&L.
-- **`orders`**: Indexed on `order_id` (UNIQUE). Immutable audit log capturing order types, quantities, fill prices, broker statuses, and execution timestamps.
-- **`auth_config`**: Single-row configuration storing the PBKDF2 password hash, random salts, and initialization state.
-- **`secure_vault`**: Key-value table storing Fernet-encrypted sensitive API credentials.
-
----
-
-## 8. Frontend Terminal Architecture
-
-The frontend is constructed using **React 19**, **TypeScript**, and **TradingView Lightweight Charts v5**:
-
-- **Hardware Accelerated Rendering**: Candlesticks, volume bars, and EMA overlays render directly on HTML5 Canvas at 60 FPS.
-- **State Synchronization**: WebSocket client maintains automatic reconnection with exponential backoff, updating quote cards and active positions mark-to-market.
-- **Web Speech & Web Audio**: Integrates native browser speech recognition for hands-free command processing (`"Approve"`, `"Reject"`, `"Scan"`) and discrete synthesizer cues (`Office Mode`).
-
----
-
-## 9. Enterprise Codebase Layout & Layering
-
-### 9.1 REST Backend (`backend/`) — Layered Clean Architecture
-```text
-backend/
-├── app/                        # Application Root Package
-│   ├── main.py                 # FastAPI Application Factory & Lifespan Orchestrator
-│   ├── config.py               # Pydantic BaseSettings & Dynamic Instrument Loaders
-│   ├── core/                   # Cross-Cutting Infrastructure
-│   │   ├── security.py         # Passwords, PBKDF2, Bearer tokens, vault
-│   │   ├── logging.py          # Structured server logging & rotating file handlers
-│   │   └── interfaces.py       # BaseOrderExecutor & BaseMarketDataProvider contracts
-│   ├── api/                    # HTTP & WebSocket Delivery Layer
-│   │   ├── deps.py             # Security Barrier & FastAPI Dependencies (require_auth)
-│   │   └── v1/                 # Versioned API Routers
-│   │       ├── router.py       # Aggregated v1 API Router
-│   │       └── endpoints/      # Domain-specific route controllers
-│   │           ├── auth.py     # /api/auth/*
-│   │           ├── market.py   # /api/market/*
-│   │           ├── trades.py   # /api/trade/* & /api/trades/*
-│   │           ├── settings.py # /api/settings/* & /api/instruments
-│   │           └── websocket.py# /ws/live
-│   ├── models/                 # Data Layer
-│   │   ├── database.py         # SQLite Schema, Connection Pool, Vault Persistence
-│   │   └── schemas.py          # Pydantic Request/Response DTOs
-│   ├── services/               # Domain Business Logic
-│   │   ├── kite/               # Zerodha Kite SDK & Live Order Executor
-│   │   ├── paper/              # Virtual Sandbox Engine
-│   │   ├── market/             # Quotes Ingestion & Technical Indicators
-│   │   ├── ai/                 # Gemini Quantitative Reasoning Engine
-│   │   └── notifications/      # Multi-channel Webhook Dispatcher
-│   └── data/                   # Configuration & Static Assets
-│       └── instruments.json    # Configurable Trading Instruments
-├── tests/                      # Pytest Automated Test Suite (17 Integration Tests)
-├── logs/                       # Rotating Runtime Server Logs
-├── requirements.txt
-└── main.py                     # Root Backward-Compatibility Shim
-```
-
-### 9.2 Client Frontend (`frontend/src/`) — Feature-Driven Architecture
-```text
-frontend/src/
-├── app/                        # App Entry & Providers
-│   ├── App.tsx                 # Root Layout & State Composition
-│   ├── App.css                 # Layout Styles
-│   └── main.tsx                # DOM Bootstrap
-├── core/                       # Foundational Styles & Design Tokens
-│   └── styles/index.css
-├── types/                      # TypeScript Interfaces (Quote, Candle, Order, etc.)
-│   └── index.ts
-├── services/                   # API & Infrastructure Client Layer
-│   ├── api.ts                  # REST Client & HTTP Interceptors
-│   ├── speech.ts               # Web Speech Synthesis & Recognition
-│   ├── sound.ts                # Web Audio API Synthesizer
-│   └── notifications.ts        # Browser Desktop Alerts
-├── components/                 # Shared Components
-│   └── layout/Header.tsx       # Top Bar & Connectivity Status
-└── features/                   # Domain Features
-    ├── auth/AuthGatekeeper.tsx # Master Password Vault Screen
-    ├── market/                 # Watchlist & Real-Time TradingChart
-    ├── trading/                # TradeProposalCard, PositionsTable, HistoryTracker
-    ├── voice/VoiceRadar.tsx    # Hands-Free Voice Radar
-    └── settings/SettingsModal.tsx # Credentials Vault Modal
-```
+- **Fake Kite client** (`tests/test_reliability.py`) exercises the real order lifecycle: contract resolution, unfilled-entry cancellation, protective stop placement, stop-failure flattening, stop-already-filled exits, and "no duplicate exit after a timeout".
+- **Backtester tests** use hand-built candles to prove entry timing, stop-before-target ordering, square-off, and net = gross − charges.
+- **LLM boundary tests** prove a rejected setup never reaches the model and that a model cannot move a price level.
+- **Security and API tests** cover the vault, sessions, log redaction and login throttling.

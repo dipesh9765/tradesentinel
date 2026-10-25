@@ -42,10 +42,10 @@ def _pitch_matches_levels(pitch: str, signal: Dict[str, Any]) -> bool:
     return True
 
 
-class GeminiMarketAnalyzer(BaseTradeAnalyzer):
+class TradeAnalyzer(BaseTradeAnalyzer):
     """
-    Quant-gated analyzer. Name kept for backward compatibility; the LLM provider is
-    selected at runtime through ai_providers (Gemini, OpenAI or Anthropic).
+    Quant-gated analyzer. The LLM provider is selected at runtime through ai_providers
+    (Gemini, OpenAI or Anthropic) and is used only to explain trades.
     """
 
     def __init__(self):
@@ -167,4 +167,4 @@ class GeminiMarketAnalyzer(BaseTradeAnalyzer):
 
 
 # Singleton instance
-gemini_analyzer = GeminiMarketAnalyzer()
+trade_analyzer = TradeAnalyzer()

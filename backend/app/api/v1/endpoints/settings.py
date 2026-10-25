@@ -13,7 +13,7 @@ from app.config import settings, load_instruments_data
 from app.api.deps import require_auth
 from app.models.schemas import SettingsUpdateRequest, ModeUpdateRequest, KiteSessionRequest
 from kite_executor import kite_executor
-from gemini_analyzer import gemini_analyzer
+from trade_analyzer import trade_analyzer
 from market_data import market_data_manager
 from notifications import notification_service
 from server_logger import log_config_saved
@@ -51,7 +51,7 @@ def get_settings():
         "discord_webhook_url": notification_service.config.discord_webhook_url or "",
         "slack_webhook_url": notification_service.config.slack_webhook_url or "",
         "office_mode": notification_service.config.office_mode,
-        "gemini_active": bool(gemini_analyzer.client),
+        "gemini_active": bool(trade_analyzer.client),
         "ai_provider": ai_providers.get_active_provider(),
         "ai_active": ai_providers.is_configured(),
         "kite_active": kite_executor.is_authenticated()
@@ -143,7 +143,7 @@ def update_settings(req: SettingsUpdateRequest):
         clean_key = req.gemini_api_key.strip()
         database.save_secure_setting("GEMINI_API_KEY", clean_key)
         settings.GEMINI_API_KEY = clean_key
-        gemini_analyzer.update_api_key(clean_key)
+        trade_analyzer.update_api_key(clean_key)
 
     if req.kite_api_key:
         clean_api_key = req.kite_api_key.strip()
@@ -199,7 +199,7 @@ def update_settings(req: SettingsUpdateRequest):
     return {
         "success": True,
         "mode": kite_executor.mode,
-        "gemini_active": bool(gemini_analyzer.client),
+        "gemini_active": bool(trade_analyzer.client),
         "kite_active": kite_executor.is_authenticated(),
         "office_mode": notification_service.config.office_mode
     }

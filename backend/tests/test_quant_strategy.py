@@ -15,7 +15,7 @@ from technical_indicators import (
     detect_rsi_divergence
 )
 from quant_strategy import quant_engine, InstitutionalQuantEngine
-from gemini_analyzer import gemini_analyzer
+from trade_analyzer import trade_analyzer
 from kite_executor import kite_executor
 
 

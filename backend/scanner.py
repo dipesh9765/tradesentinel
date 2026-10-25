@@ -15,7 +15,7 @@ from typing import Dict, Any, Optional
 from config import settings, get_watchlist_symbols
 from market_data import market_data_manager
 from quant_strategy import quant_engine
-from gemini_analyzer import gemini_analyzer
+from trade_analyzer import trade_analyzer
 from kite_executor import kite_executor
 from notifications import notification_service
 from app.core.genConsts import GenConsts
@@ -129,7 +129,7 @@ class OpportunityScannerService:
                     return None
 
         # 4. Generate Full Institutional Setup
-        signal = gemini_analyzer.analyze_market_setup(symbol, quote, candle_df)
+        signal = trade_analyzer.analyze_market_setup(symbol, quote, candle_df)
         if not signal.get("actionable"):
             return None
         try:

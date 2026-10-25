@@ -11,7 +11,7 @@ from app.api.deps import require_auth
 from app.models.schemas import ScanRequest, ApproveRequest, RejectRequest, ClosePositionRequest
 from market_data import market_data_manager
 from kite_executor import kite_executor
-from gemini_analyzer import gemini_analyzer
+from trade_analyzer import trade_analyzer
 from notifications import notification_service
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ async def scan_symbol_endpoint(req: ScanRequest, background_tasks: BackgroundTas
     quote = market_data_manager.get_quote(req.symbol)
     candle_df = market_data_manager.candles_data.get(req.symbol)
 
-    signal = gemini_analyzer.analyze_market_setup(req.symbol, quote, candle_df)
+    signal = trade_analyzer.analyze_market_setup(req.symbol, quote, candle_df)
     if not signal.get("actionable"):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
