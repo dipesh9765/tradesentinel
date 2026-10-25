@@ -1,5 +1,5 @@
 """
-Cryptographic Security & Session Vault Architecture - KitePulse AI
+Cryptographic Security & Session Vault Architecture - TradeSentinel
 
 This module implements enterprise security protocols protecting trading credentials
 and authorization barriers:

@@ -1,5 +1,5 @@
 """
-Strategy Backtester - KitePulse AI
+Strategy Backtester - TradeSentinel
 
 Replays historical candles through the SAME rules engine and the SAME exit rules the live system
 uses, then reports what the strategy would actually have earned after costs.
@@ -348,7 +348,7 @@ def load_csv(path: str) -> pd.DataFrame:
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    ap = argparse.ArgumentParser(description="Backtest the KitePulse rules engine on 5-minute candles.")
+    ap = argparse.ArgumentParser(description="Backtest the TradeSentinel rules engine on 5-minute candles.")
     ap.add_argument("--csv", required=True, help="CSV with timestamp/date, open, high, low, close, volume")
     ap.add_argument("--symbol", required=True, help='Symbol as in instruments.json, e.g. "BANK NIFTY"')
     ap.add_argument("--lots", type=int, default=1)

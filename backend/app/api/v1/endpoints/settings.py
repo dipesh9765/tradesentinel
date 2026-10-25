@@ -129,7 +129,7 @@ async def test_notifications_endpoint():
         "target_1": 165.0,
         "risk_reward": "1:2.0",
         "confidence": 95,
-        "verbal_pitch": f"Test notification for {test_symbol} from KitePulse AI",
+        "verbal_pitch": f"Test notification for {test_symbol} from TradeSentinel",
         "technical_rationale": "System verification of webhook channels"
     }
     await notification_service.notify_trade_proposal(test_proposal)

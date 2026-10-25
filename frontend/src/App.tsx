@@ -379,7 +379,7 @@ export const App: React.FC = () => {
         const granted = await notificationManager.requestPermission();
         setNotificationPermission(notificationManager.getPermission());
         if (granted) {
-            notificationManager.sendNotification("🚀 KitePulse AI Alerts Active", {
+            notificationManager.sendNotification("🚀 TradeSentinel Alerts Active", {
                 body: "Windows notifications will now pop up whenever an A+ setup is spotted!"
             });
         }
@@ -405,7 +405,7 @@ export const App: React.FC = () => {
     };
 
     const handleTestNotification = async () => {
-        notificationManager.sendNotification("🎯 KitePulse AI: Opportunity Alert", {
+        notificationManager.sendNotification("🎯 TradeSentinel: Opportunity Alert", {
             body: "Sample: NIFTY 24850 CE Buy @ 120, SL: 108, Target: 156. Notifications working properly!"
         });
         await testNotificationApi();
@@ -426,7 +426,7 @@ export const App: React.FC = () => {
             <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#060911", color: "#00f0ff" }}>
                 <div style={{ textAlign: "center" }}>
                     <Lock size={36} style={{ animation: "pulse 1.5s infinite", margin: "0 auto 16px" }} />
-                    <div style={{ fontSize: "16px", fontWeight: 700, letterSpacing: "0.5px" }}>Verifying KitePulse Security Vault...</div>
+                    <div style={{ fontSize: "16px", fontWeight: 700, letterSpacing: "0.5px" }}>Verifying TradeSentinel Security Vault...</div>
                 </div>
             </div>
         );

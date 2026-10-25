@@ -66,7 +66,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <h1 style={{ fontSize: "20px", fontWeight: 800, letterSpacing: "-0.5px" }}>KitePulse AI</h1>
+              <h1 style={{ fontSize: "20px", fontWeight: 800, letterSpacing: "-0.5px" }}>TradeSentinel</h1>
               <span style={{
                 fontSize: "10px",
                 fontWeight: 700,

@@ -45,7 +45,7 @@ class NotificationManager {
     try {
       const notification = new Notification(title, {
         body: options?.body,
-        tag: options?.tag || "kitepulse-alert",
+        tag: options?.tag || "tradesentinel-alert",
         icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2300f0ff'><path d='M13 2L3 14h9l-1 8 10-12h-9l1-8z'/></svg>",
         silent: false
       });
@@ -71,7 +71,7 @@ class NotificationManager {
     confidence: number;
   }) {
     const action = proposal.signal_type.replace("_", " ");
-    const title = `🚨 KitePulse AI: ${action} on ${proposal.instrument}`;
+    const title = `🚨 TradeSentinel: ${action} on ${proposal.instrument}`;
     const body = `Entry: ₹${proposal.entry_price} | SL: ₹${proposal.stop_loss} | Target: ₹${proposal.target_1} (R:R ${proposal.risk_reward} • Conf: ${proposal.confidence}%)\nClick to approve on dashboard.`;
 
     this.sendNotification(title, { body, tag: `proposal-${proposal.instrument}` });

@@ -1,5 +1,5 @@
 """
-Trade Signal Validation - KitePulse AI
+Trade Signal Validation - TradeSentinel
 
 Pure, side-effect-free sanity checks applied to every trade signal before it can
 become a proposal. Whatever produced the signal (quant rules or an LLM), these

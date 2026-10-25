@@ -1,5 +1,5 @@
 """
-Unit Tests for Institutional Quantitative Strategy Engine & Real-Time P&L - KitePulse AI
+Unit Tests for Institutional Quantitative Strategy Engine & Real-Time P&L - TradeSentinel
 """
 
 import pytest

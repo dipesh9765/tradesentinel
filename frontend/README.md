@@ -1,4 +1,4 @@
-# KitePulse AI: Frontend
+# TradeSentinel: Frontend
 
 React 19 + TypeScript (strict) + Vite trading terminal. See the [root README](../README.md) for the whole system.
 

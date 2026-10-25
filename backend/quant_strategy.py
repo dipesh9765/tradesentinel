@@ -1,5 +1,5 @@
 """
-Institutional Quantitative Strategy Engine - KitePulse AI
+Institutional Quantitative Strategy Engine - TradeSentinel
 
 Implements a multi-factor institutional quantitative strategy framework tailored
 for Indian Equity & Derivatives markets (NSE NIFTY 50, BANK NIFTY, FIN NIFTY, Equities).

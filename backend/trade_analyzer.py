@@ -1,5 +1,5 @@
 """
-Trade Analysis Engine - KitePulse AI
+Trade Analysis Engine - TradeSentinel
 
 The deterministic quantitative rules engine is the ONLY source of trade decisions and price
 levels (entry, stop-loss, targets). The configured LLM (Gemini, OpenAI or Claude, chosen in

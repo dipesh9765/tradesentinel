@@ -1,5 +1,5 @@
 """
-KitePulse AI - Enterprise Trading Execution Platform
+TradeSentinel - Enterprise Trading Execution Platform
 Application Package Root
 """
 

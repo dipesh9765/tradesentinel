@@ -1,8 +1,8 @@
 @echo off
-title KitePulse AI - Backend Server
+title TradeSentinel - Backend Server
 color 0b
 echo ===================================================
-echo           KitePulse AI - Backend Server
+echo           TradeSentinel - Backend Server
 echo ===================================================
 cd /d "%~dp0"
 

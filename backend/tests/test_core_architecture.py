@@ -1,5 +1,5 @@
 """
-Unit Tests for KitePulse AI Core Architecture Layer
+Unit Tests for TradeSentinel Core Architecture Layer
 Validates the abstract base classes, paper simulation engine, and strategy decoupling.
 """
 

@@ -1,5 +1,5 @@
 """
-Core Architecture Interfaces - KitePulse AI
+Core Architecture Interfaces - TradeSentinel
 
 This module defines the foundational abstract base classes (ABCs) and domain contracts
 for the entire trading platform. By adhering to the Dependency Inversion Principle (DIP)
@@ -69,7 +69,7 @@ class BaseOrderExecutor(ABC):
     
     Any broker integration (Zerodha Kite, Angel One, Interactive Brokers) or
     virtual simulation engine must implement this contract to seamlessly plug into
-    the KitePulse trade orchestrator.
+    the TradeSentinel trade orchestrator.
     """
 
     @property

@@ -1,7 +1,7 @@
 """
-KitePulse AI - Trading Execution Engine & Broker Abstraction Layer
+TradeSentinel - Trading Execution Engine & Broker Abstraction Layer
 
-This module provides the core execution layer for KitePulse AI, adhering to SOLID principles,
+This module provides the core execution layer for TradeSentinel, adhering to SOLID principles,
 the Strategy Pattern, and the Adapter Pattern. It cleanly separates low-level broker execution
 (Zerodha KiteConnect SDK) from virtual sandbox execution (Paper Engine), orchestrated through
 a unified trading engine facade.

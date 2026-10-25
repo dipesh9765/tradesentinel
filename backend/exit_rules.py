@@ -1,5 +1,5 @@
 """
-Position Exit Rules - KitePulse AI
+Position Exit Rules - TradeSentinel
 
 Pure stop-loss / target / trailing logic shared by the live trading engine and the backtester,
 so the strategy that is backtested is exactly the one that trades.

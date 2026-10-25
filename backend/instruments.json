@@ -1,5 +1,5 @@
 {
-    "description": "Pre-loaded intraday trading instruments configuration for KitePulse AI. Edit this file to add, remove, or modify instruments without touching backend code.",
+    "description": "Pre-loaded intraday trading instruments configuration for TradeSentinel. Edit this file to add, remove, or modify instruments without touching backend code.",
     "instruments": [
         {
             "symbol": "NIFTY 50",

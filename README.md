@@ -1,4 +1,4 @@
-# KitePulse AI
+# TradeSentinel
 
 **A rules-first intraday trading assistant for Indian markets (NSE/NFO) with human approval, broker-side risk controls, a cost-aware backtester and a pluggable LLM layer.**
 

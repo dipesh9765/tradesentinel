@@ -1,5 +1,5 @@
 """
-Technical Indicators & Quantitative Signal Metrics - KitePulse AI
+Technical Indicators & Quantitative Signal Metrics - TradeSentinel
 
 This module implements institutional-grade intraday technical indicators used
 for momentum, trend, volatility, and mean-reversion analysis on equity & derivative

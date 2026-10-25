@@ -1,5 +1,5 @@
 """
-Multi-Provider LLM Gateway - KitePulse AI
+Multi-Provider LLM Gateway - TradeSentinel
 
 Single entry point for the AI layer so the rest of the app never touches a vendor SDK.
 Supports Google Gemini, OpenAI and Anthropic Claude. The active provider, per-provider

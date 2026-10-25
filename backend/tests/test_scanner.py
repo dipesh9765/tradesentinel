@@ -1,5 +1,5 @@
 """
-Unit Tests for Autonomous Market Opportunity Scanner - KitePulse AI
+Unit Tests for Autonomous Market Opportunity Scanner - TradeSentinel
 """
 
 import pytest

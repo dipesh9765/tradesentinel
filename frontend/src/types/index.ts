@@ -1,5 +1,5 @@
 /**
- * KitePulse AI - Domain Type Definitions & Schemas
+ * TradeSentinel - Domain Type Definitions & Schemas
  *
  * This module defines the core TypeScript interfaces representing market quotes,
  * historical candlestick intervals, AI trade proposals, active positions,

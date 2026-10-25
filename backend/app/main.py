@@ -1,5 +1,5 @@
 """
-KitePulse AI - Application Entrypoint & Lifespan Orchestrator
+TradeSentinel - Application Entrypoint & Lifespan Orchestrator
 FastAPI Enterprise Application Factory
 """
 
@@ -93,22 +93,22 @@ async def lifespan(app: FastAPI):
     """
     from scanner import opportunity_scanner
 
-    logger.info("Initializing KitePulse background market sync & P&L monitor...")
+    logger.info("Initializing TradeSentinel background market sync & P&L monitor...")
     market_task = asyncio.create_task(background_market_worker())
-    logger.info("Initializing KitePulse 30-second token verification heartbeat...")
+    logger.info("Initializing TradeSentinel 30-second token verification heartbeat...")
     token_task = asyncio.create_task(periodic_30s_token_verification_worker())
     logger.info("Initializing Autonomous Market Opportunity Scanner...")
     scanner_task = asyncio.create_task(opportunity_scanner.start_loop())
 
     yield
 
-    logger.info("Shutting down KitePulse background tasks...")
+    logger.info("Shutting down TradeSentinel background tasks...")
     market_task.cancel()
     token_task.cancel()
     scanner_task.cancel()
     opportunity_scanner.stop()
     await asyncio.gather(market_task, token_task, scanner_task, return_exceptions=True)
-    logger.info("KitePulse background tasks terminated.")
+    logger.info("TradeSentinel background tasks terminated.")
 
 
 tags_metadata = [
@@ -121,7 +121,7 @@ tags_metadata = [
 
 
 def create_app() -> FastAPI:
-    """Application factory for KitePulse AI FastAPI REST server."""
+    """Application factory for TradeSentinel FastAPI REST server."""
     app = FastAPI(
         title=settings.APP_NAME,
         version=settings.APP_VERSION,

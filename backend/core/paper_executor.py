@@ -1,5 +1,5 @@
 """
-Paper Execution Engine - KitePulse AI
+Paper Execution Engine - TradeSentinel
 
 Provides an isolated, risk-free simulated execution broker adhering to SOLID principles
 and the Strategy Pattern. Models realistic order fills, virtual balance management,

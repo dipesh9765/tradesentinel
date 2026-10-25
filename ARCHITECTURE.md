@@ -1,6 +1,6 @@
 # Architecture
 
-This document explains how KitePulse AI is put together and, more importantly, why. It matches the code in this repository.
+This document explains how TradeSentinel is put together and, more importantly, why. It matches the code in this repository.
 
 ## 1. Goals
 

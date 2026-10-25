@@ -1,5 +1,5 @@
 """
-Root re-export shim for GenPrompts - KitePulse AI.
+Root re-export shim for GenPrompts - TradeSentinel.
 Allows seamless access to AI prompt templates from root-level modules and analyzers.
 """
 

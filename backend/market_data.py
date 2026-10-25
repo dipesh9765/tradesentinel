@@ -1,5 +1,5 @@
 """
-Market Data Management & Ingestion Layer - KitePulse AI
+Market Data Management & Ingestion Layer - TradeSentinel
 
 This module implements the market data ingestion layer adhering to SOLID principles
 and the BaseMarketDataProvider interface. It connects to Zerodha KiteConnect's market quotes

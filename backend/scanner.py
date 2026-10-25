@@ -1,5 +1,5 @@
 """
-Autonomous Continuous Market Opportunity Scanner - KitePulse AI
+Autonomous Continuous Market Opportunity Scanner - TradeSentinel
 
 This module implements the 24/7 background market scanner service that continuously
 evaluates live market feeds for high-conviction A+ setups (Confluence Score >= 75/100),

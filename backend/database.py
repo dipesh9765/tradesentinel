@@ -1,5 +1,5 @@
 """
-Database & Encrypted Secure Vault Management Layer - KitePulse AI
+Database & Encrypted Secure Vault Management Layer - TradeSentinel
 
 This module implements the persistence layer for trade suggestions, positions, order audit logs,
 and sensitive brokerage API credentials. It provides an ACID-compliant SQLite implementation

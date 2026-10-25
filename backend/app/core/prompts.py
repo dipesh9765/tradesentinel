@@ -1,5 +1,5 @@
 """
-Centralized AI Prompt Templates - KitePulse AI.
+Centralized AI Prompt Templates - TradeSentinel.
 Eliminates hardcoded prompts in application logic.
 All dynamic placeholders follow the format '%KEY%' and are replaced at runtime.
 """

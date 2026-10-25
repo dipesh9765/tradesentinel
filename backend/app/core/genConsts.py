@@ -1,5 +1,5 @@
 """
-Centralized General Constants (GenConsts) - KitePulse AI Backend.
+Centralized General Constants (GenConsts) - TradeSentinel Backend.
 Eliminates hardcoded strings, magic numbers, and duplicate values across the application.
 """
 
@@ -7,10 +7,10 @@ from typing import Final
 
 
 class GenConsts:
-    """Central constants namespace for KitePulse AI backend."""
+    """Central constants namespace for TradeSentinel backend."""
 
     # Application Metadata
-    APP_NAME: Final[str] = "KitePulse AI"
+    APP_NAME: Final[str] = "TradeSentinel"
     APP_VERSION: Final[str] = "1.0.0"
 
     # Filesystem & Database

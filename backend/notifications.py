@@ -1,5 +1,5 @@
 """
-Multi-Channel Notification Dispatcher - KitePulse AI
+Multi-Channel Notification Dispatcher - TradeSentinel
 
 This module implements the notification dispatch layer adhering to the
 BaseNotificationDispatcher interface. It coordinates alerts across multiple communication
