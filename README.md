@@ -2,7 +2,7 @@
 
 **A rules-first intraday trading assistant for Indian markets (NSE/NFO) with human approval, broker-side risk controls, a cost-aware backtester and a pluggable LLM layer.**
 
-[![CI](https://github.com/dipesh9765/KitePulse-AI/actions/workflows/ci.yml/badge.svg)](https://github.com/dipesh9765/KitePulse-AI/actions/workflows/ci.yml)
+[![CI](https://github.com/dipesh9765/tradesentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/dipesh9765/tradesentinel/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
