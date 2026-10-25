@@ -1,7 +1,7 @@
 """
-KitePulse AI - Trading Execution Engine & Broker Abstraction Layer
+TradeSentinel - Trading Execution Engine & Broker Abstraction Layer
 
-This module provides the core execution layer for KitePulse AI, adhering to SOLID principles,
+This module provides the core execution layer for TradeSentinel, adhering to SOLID principles,
 the Strategy Pattern, and the Adapter Pattern. It cleanly separates low-level broker execution
 (Zerodha KiteConnect SDK) from virtual sandbox execution (Paper Engine), orchestrated through
 a unified trading engine facade.
@@ -19,6 +19,8 @@ SOLID Architectural Principles Applied:
 """
 
 import datetime
+import re
+import threading
 import time
 import uuid
 import logging
@@ -34,6 +36,8 @@ from server_logger import (
 )
 from core.interfaces import BaseOrderExecutor, OrderStatus, TradingMode
 from core.paper_executor import PaperExecutionEngine
+from trade_validation import validate_signal, is_option_instrument
+from exit_rules import check_exit_triggers
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +67,7 @@ class KiteExecutionEngine(BaseOrderExecutor):
         self.api_secret = api_secret
         self.access_token = access_token
         self.kite_client = None
+        self._nfo_cache: Dict[str, Any] = {"date": None, "rows": []}
 
         # 30-Second token verification tracking state
         self._last_token_verification_time: float = 0.0
@@ -260,9 +265,8 @@ class KiteExecutionEngine(BaseOrderExecutor):
         """
         Prepares and sanitizes Kite order parameters according to exchange conventions.
 
-        Args:
-            proposal: Approved trade proposal payload.
-            lot_size: Number of lots/quantity to trade.
+        Options are resolved to a real NFO contract (exact tradingsymbol, true lot size), and the
+        order quantity is lots x contract lot size. Prices are rounded to the 0.05 tick.
 
         Returns:
             Tuple of (order_params_dict, clean_tradingsymbol, exchange_str).
@@ -273,38 +277,47 @@ class KiteExecutionEngine(BaseOrderExecutor):
             else self.kite_client.TRANSACTION_TYPE_SELL
         )
 
-        is_derivative = "CE" in proposal["instrument"] or "PE" in proposal["instrument"]
-        exchange = self.kite_client.EXCHANGE_NFO if is_derivative else self.kite_client.EXCHANGE_NSE
-
         raw_inst = proposal.get("instrument", "")
-        clean_tradingsymbol = raw_inst.replace(" MIS", "").replace(" CNC", "").replace(" EQ", "").strip()
-        if not is_derivative and proposal.get("symbol"):
-            sym = proposal["symbol"].strip()
-            clean_tradingsymbol = get_tradingsymbol_map().get(sym, sym)
+        quantity = lot_size
+        if is_option_instrument(raw_inst):
+            exchange = self.kite_client.EXCHANGE_NFO
+            contract = self.resolve_nfo_contract(raw_inst)
+            clean_tradingsymbol = contract["tradingsymbol"]
+            quantity = lot_size * contract["lot_size"]
+        else:
+            exchange = self.kite_client.EXCHANGE_NSE
+            clean_tradingsymbol = raw_inst.replace(" MIS", "").replace(" CNC", "").replace(" EQ", "").strip()
+            if proposal.get("symbol"):
+                sym = proposal["symbol"].strip()
+                clean_tradingsymbol = get_tradingsymbol_map().get(sym, sym)
 
         order_params = {
             "variety": self.kite_client.VARIETY_REGULAR,
             "exchange": exchange,
             "tradingsymbol": clean_tradingsymbol,
             "transaction_type": trans_type,
-            "quantity": lot_size,
+            "quantity": quantity,
             "product": self.kite_client.PRODUCT_MIS,
-            "order_type": self.kite_client.ORDER_TYPE_MARKET
+            "order_type": self.kite_client.ORDER_TYPE_LIMIT,
+            "price": self._round_tick(float(proposal.get("entry_price", 0))),
+            "tag": "KPENTRY",
         }
         return order_params, clean_tradingsymbol, exchange
 
-    def _dispatch_kite_order(self, order_params: Dict[str, Any]) -> str:
+    def _dispatch_kite_order(self, order_params: Dict[str, Any], fallback_limit_price: Optional[float] = None) -> str:
         """
-        Dispatches the prepared market order to Zerodha Kite Connect with telemetry logging.
+        Dispatches the prepared order to Zerodha Kite Connect with telemetry logging
+        and automatic LIMIT order fallback if market protection is enforced.
 
         Args:
             order_params: Sanitized KiteConnect order parameter dictionary.
+            fallback_limit_price: Optional limit price fallback if market orders are restricted.
 
         Returns:
             str: Broker-assigned order identifier.
 
         Raises:
-            Exception: If order placement encounters a broker failure.
+            Exception: If order placement encounters an irrecoverable broker failure.
         """
         call_start = time.time()
         log_outgoing_request("Zerodha Kite", "place_order", order_params)
@@ -316,6 +329,27 @@ class KiteExecutionEngine(BaseOrderExecutor):
         except Exception as pe_err:
             dur = round((time.time() - call_start) * 1000, 2)
             log_outgoing_error("Zerodha Kite", "place_order", pe_err, dur)
+            
+            err_msg = str(pe_err).lower()
+            if ("market protection" in err_msg or "limit order" in err_msg) and fallback_limit_price and fallback_limit_price > 0:
+                logger.info(f"Retrying Zerodha order as LIMIT @ ₹{fallback_limit_price} due to market order restrictions...")
+                fallback_params = dict(order_params)
+                fallback_params["order_type"] = self.kite_client.ORDER_TYPE_LIMIT
+                fallback_params["price"] = self._round_tick(fallback_limit_price)
+                fallback_params.pop("market_protection", None)
+                
+                retry_start = time.time()
+                log_outgoing_request("Zerodha Kite", "place_order (LIMIT fallback)", fallback_params)
+                try:
+                    order_id = self.kite_client.place_order(**fallback_params)
+                    retry_dur = round((time.time() - retry_start) * 1000, 2)
+                    log_outgoing_response("Zerodha Kite", "place_order (LIMIT fallback)", {"order_id": str(order_id)}, retry_dur)
+                    return str(order_id)
+                except Exception as retry_err:
+                    retry_dur = round((time.time() - retry_start) * 1000, 2)
+                    log_outgoing_error("Zerodha Kite", "place_order (LIMIT fallback)", retry_err, retry_dur)
+                    raise retry_err
+            
             raise pe_err
 
     def _reconcile_order_fill(self, order_id: str, default_price: float) -> Tuple[str, str, float]:
@@ -379,7 +413,9 @@ class KiteExecutionEngine(BaseOrderExecutor):
         order_id: str,
         proposal: Dict[str, Any],
         lot_size: int,
-        filled_price: float
+        filled_price: float,
+        broker_symbol: str = "",
+        exchange: str = ""
     ) -> Dict[str, Any]:
         """Constructs a tracked live position record and persists it to SQLite."""
         pos_id = f"POS-LIVE-{order_id[-6:]}"
@@ -400,75 +436,303 @@ class KiteExecutionEngine(BaseOrderExecutor):
             "pnl_pct": 0.0,
             "opened_at": datetime.datetime.now().strftime("%H:%M:%S"),
             "status": "OPEN",
-            "mode": "LIVE"
+            "mode": "LIVE",
+            "broker_symbol": broker_symbol,
+            "exchange": exchange,
+            "sl_order_id": None,
+            "exit_order_id": None,
         }
         database.save_position(position)
         return position
 
+    # -------------------------------------------------------------------------
+    # Live order lifecycle: contract resolution, fills, protective stop, exits
+    # -------------------------------------------------------------------------
+
+    TERMINAL_STATUSES = ("COMPLETE", "REJECTED", "CANCELLED")
+    ENTRY_FILL_TIMEOUT = 8.0
+    EXIT_FILL_TIMEOUT = 10.0
+    STOP_LIMIT_BUFFER_PCT = 0.03  # SL order limit price sits 3% beyond the trigger so it fills
+
+    @staticmethod
+    def _round_tick(price: float) -> float:
+        """Rounds to the NSE 0.05 tick size, which Kite requires for prices and triggers."""
+        return round(round(float(price) / 0.05) * 0.05, 2)
+
+    def resolve_nfo_contract(self, label: str) -> Dict[str, Any]:
+        """
+        Maps a display label like 'BANKNIFTY 52000 CE' to a real tradable NFO contract
+        (nearest non-expired expiry) with its exchange tradingsymbol and true lot size.
+        """
+        m = re.match(r"^\s*([A-Za-z&-]+)\s+(\d+(?:\.\d+)?)\s*(CE|PE)\s*$", label or "")
+        if not m:
+            raise ValueError(f"Cannot parse option instrument '{label}' (expected e.g. 'BANKNIFTY 52000 CE').")
+        name, strike, opt_type = m.group(1).upper(), float(m.group(2)), m.group(3)
+
+        today = datetime.date.today()
+        if self._nfo_cache.get("date") != today:
+            self.verify_outgoing_kite_request()
+            self._nfo_cache = {"date": today, "rows": self.kite_client.instruments("NFO")}
+
+        def as_date(value):
+            return value.date() if isinstance(value, datetime.datetime) else value
+
+        candidates = [
+            r for r in self._nfo_cache["rows"]
+            if r.get("name") == name and r.get("instrument_type") == opt_type
+            and float(r.get("strike", 0)) == strike
+            and r.get("expiry") and as_date(r["expiry"]) >= today
+        ]
+        if not candidates:
+            raise ValueError(f"No live NFO contract found for {name} {strike:g} {opt_type}.")
+        nearest = min(candidates, key=lambda r: as_date(r["expiry"]))
+        return {
+            "tradingsymbol": nearest["tradingsymbol"],
+            "lot_size": int(nearest["lot_size"]),
+            "expiry": as_date(nearest["expiry"]),
+        }
+
+    def get_option_ltp(self, label: str) -> Optional[float]:
+        """Current premium of the exact contract that would be traded."""
+        contract = self.resolve_nfo_contract(label)
+        key = f"NFO:{contract['tradingsymbol']}"
+        self.verify_outgoing_kite_request()
+        data = self.kite_client.ltp([key])
+        price = (data.get(key) or {}).get("last_price")
+        return float(price) if price else None
+
+    def _latest_order(self, order_id: str) -> Optional[Dict[str, Any]]:
+        """Latest broker state of an order, or None if it could not be fetched."""
+        try:
+            history = self.kite_client.order_history(order_id)
+        except Exception as e:
+            logger.warning(f"Could not fetch order {order_id} from Kite: {e}")
+            return None
+        return history[-1] if history else None
+
+    def _await_terminal(self, order_id: str, timeout: float, poll: float = 0.5) -> Optional[Dict[str, Any]]:
+        """Polls until the order is COMPLETE/REJECTED/CANCELLED or the timeout elapses."""
+        deadline = time.time() + timeout
+        latest = self._latest_order(order_id)
+        while (not latest or latest.get("status") not in self.TERMINAL_STATUSES) and time.time() < deadline:
+            time.sleep(poll)
+            latest = self._latest_order(order_id) or latest
+        return latest
+
+    def _cancel_quietly(self, order_id: str) -> None:
+        try:
+            self.kite_client.cancel_order(variety=self.kite_client.VARIETY_REGULAR, order_id=order_id)
+        except Exception as e:
+            logger.warning(f"Cancel of order {order_id} failed (may already be terminal): {e}")
+
+    def get_order_statuses(self) -> Dict[str, Dict[str, Any]]:
+        """All of today's orders keyed by order_id, for one-call monitoring of broker-side stops."""
+        self.verify_outgoing_kite_request()
+        return {str(o["order_id"]): o for o in self.kite_client.orders()}
+
+    def _stop_prices(self, pos: Dict[str, Any]) -> Tuple[float, float]:
+        """(trigger, limit) for the protective SL order; limit sits beyond trigger so it fills."""
+        is_long = "BUY" in pos["signal_type"]
+        trigger = self._round_tick(pos["stop_loss"])
+        buffer = max(0.1, trigger * self.STOP_LIMIT_BUFFER_PCT)
+        limit = self._round_tick(trigger - buffer if is_long else trigger + buffer)
+        return trigger, max(limit, 0.05)
+
+    def place_protective_stop(self, pos: Dict[str, Any]) -> str:
+        """Places a broker-side SL order so the position stays protected if this app goes offline."""
+        self.verify_outgoing_kite_request()
+        is_long = "BUY" in pos["signal_type"]
+        trigger, limit = self._stop_prices(pos)
+        params = {
+            "variety": self.kite_client.VARIETY_REGULAR,
+            "exchange": pos["exchange"],
+            "tradingsymbol": pos["broker_symbol"],
+            "transaction_type": self.kite_client.TRANSACTION_TYPE_SELL if is_long else self.kite_client.TRANSACTION_TYPE_BUY,
+            "quantity": int(pos["quantity"]),
+            "product": self.kite_client.PRODUCT_MIS,
+            "order_type": self.kite_client.ORDER_TYPE_SL,
+            "price": limit,
+            "trigger_price": trigger,
+            "validity": self.kite_client.VALIDITY_DAY,
+            "tag": "KPSL",
+        }
+        return self._dispatch_kite_order(params)
+
+    def modify_protective_stop(self, pos: Dict[str, Any]) -> None:
+        """Moves the broker-side stop to the position's current (trailed) stop-loss."""
+        self.verify_outgoing_kite_request()
+        trigger, limit = self._stop_prices(pos)
+        self.kite_client.modify_order(
+            variety=self.kite_client.VARIETY_REGULAR,
+            order_id=pos["sl_order_id"],
+            trigger_price=trigger,
+            price=limit,
+        )
+
+    def exit_position(self, pos: Dict[str, Any]) -> Tuple[float, str]:
+        """
+        Sends a market square-off to the broker and returns (fill_price, order_id).
+        Raises RuntimeError if the exit cannot be confirmed. Never places a second exit while
+        an earlier one is still unresolved, to avoid flipping into a reverse position.
+        """
+        self.verify_outgoing_kite_request()
+        previous = pos.get("exit_order_id")
+        if previous:
+            state = self._latest_order(previous)
+            if state is None:
+                raise RuntimeError(f"Exit order {previous} status unknown; not sending another to avoid a double exit.")
+            status = state.get("status")
+            if status == "COMPLETE":
+                return float(state.get("average_price") or 0.0), previous
+            if status not in ("REJECTED", "CANCELLED"):
+                final = self._await_terminal(previous, self.EXIT_FILL_TIMEOUT)
+                if final and final.get("status") == "COMPLETE":
+                    return float(final.get("average_price") or 0.0), previous
+                raise RuntimeError(f"Exit order {previous} still unresolved ({(final or {}).get('status')}).")
+            pos["exit_order_id"] = None
+
+        is_long = "BUY" in pos["signal_type"]
+        params = {
+            "variety": self.kite_client.VARIETY_REGULAR,
+            "exchange": pos["exchange"],
+            "tradingsymbol": pos["broker_symbol"],
+            "transaction_type": self.kite_client.TRANSACTION_TYPE_SELL if is_long else self.kite_client.TRANSACTION_TYPE_BUY,
+            "quantity": int(pos["quantity"]),
+            "product": self.kite_client.PRODUCT_MIS,
+            "order_type": self.kite_client.ORDER_TYPE_MARKET,
+            "market_protection": -1,
+            "tag": "KPEXIT",
+        }
+        order_id = self._dispatch_kite_order(params)
+        pos["exit_order_id"] = order_id
+        database.update_position_in_db(pos)
+
+        final = self._await_terminal(order_id, self.EXIT_FILL_TIMEOUT)
+        status = (final or {}).get("status")
+        if status == "COMPLETE":
+            return float(final.get("average_price") or 0.0), order_id
+        if status in ("REJECTED", "CANCELLED"):
+            pos["exit_order_id"] = None
+            raise RuntimeError(f"Exit order {status}: {(final or {}).get('status_message')}")
+        raise RuntimeError(f"Exit order {order_id} not confirmed within {self.EXIT_FILL_TIMEOUT:.0f}s.")
+
+    def close_live(self, pos: Dict[str, Any]) -> Tuple[float, str]:
+        """
+        Flattens a live position at the broker. If the protective stop already filled, its fill is
+        used and no new order is sent; otherwise the stop is cancelled (and confirmed) before exiting.
+        Returns (exit_price, order_id). Raises RuntimeError if the position could not be flattened.
+        """
+        sl_id = pos.get("sl_order_id")
+        if sl_id:
+            state = self._latest_order(sl_id)
+            status = (state or {}).get("status")
+            if status == "COMPLETE":
+                return float(state.get("average_price") or 0.0), sl_id
+            if status not in ("CANCELLED", "REJECTED"):
+                self._cancel_quietly(sl_id)
+                final = self._await_terminal(sl_id, 5.0)
+                fstatus = (final or {}).get("status")
+                if fstatus == "COMPLETE":
+                    return float(final.get("average_price") or 0.0), sl_id
+                if fstatus not in ("CANCELLED", "REJECTED"):
+                    raise RuntimeError("Could not confirm the protective stop is cancelled; refusing to exit to avoid a double sell.")
+            pos["sl_order_id"] = None
+        return self.exit_position(pos)
+
     def execute_order(self, proposal: Dict[str, Any], lot_size: int) -> Dict[str, Any]:
         """
-        Orchestrates live MIS Intraday order execution on Zerodha Kite Connect.
-        
+        Live MIS entry on Zerodha Kite.
+
         Workflow:
-            1. Verify outbound authentication & 30s token heartbeat.
-            2. Prepare and sanitize order parameters.
-            3. Dispatch order to Zerodha Kite.
-            4. Reconcile fill price and execution state from broker order history.
-            5. Persist order audit log and active position record.
-            
-        Args:
-            proposal: Approved trade proposal payload.
-            lot_size: Number of lots/quantity (strictly validated).
-            
-        Returns:
-            Dict containing order details, initial position, status, and feedback message.
-            
-        Raises:
-            RuntimeError: If order placement encounters a fatal broker error.
+            1. Verify auth/heartbeat, resolve the real contract and quantity.
+            2. Place a LIMIT entry at the approved price and wait for the fill.
+            3. If unfilled in time, cancel it (no surprise late fills) and report no position.
+            4. On a fill, immediately place a broker-side protective stop. If that fails, flatten
+               the position at once rather than leave it unprotected.
         """
         self.verify_outgoing_kite_request()
         try:
-            # 1. Parameter Preparation
-            order_params, clean_symbol, exchange = self._prepare_order_parameters(proposal, lot_size)
-
-            # 2. Network Dispatch
-            order_id = self._dispatch_kite_order(order_params)
-
-            # 3. Status & Fill Reconciliation
+            order_params, tradingsymbol, exchange = self._prepare_order_parameters(proposal, lot_size)
+            quantity = int(order_params["quantity"])
             default_entry = float(proposal["entry_price"])
-            kite_status, status_message, filled_price = self._reconcile_order_fill(order_id, default_entry)
 
-            # 4. Audit Log Persistence
+            order_id = self._dispatch_kite_order(order_params, fallback_limit_price=default_entry)
+
+            latest = self._await_terminal(order_id, self.ENTRY_FILL_TIMEOUT)
+            if not latest or latest.get("status") not in self.TERMINAL_STATUSES:
+                self._cancel_quietly(order_id)
+                latest = self._await_terminal(order_id, 3.0) or latest or {}
+            kite_status = latest.get("status", "UNKNOWN")
+            status_message = latest.get("status_message") or f"Kite status: {kite_status}"
+            filled_qty = int(latest.get("filled_quantity") or 0)
+            avg_price = float(latest.get("average_price") or 0.0)
+            filled_price = avg_price if avg_price > 0 else default_entry
+
             order_record = self._record_executed_order(
-                order_id, proposal, lot_size, filled_price, kite_status, status_message
+                order_id, proposal, filled_qty or quantity, filled_price, kite_status, status_message
             )
 
-            # 5. Handle Broker Rejection
-            if kite_status == "REJECTED":
+            if filled_qty <= 0:
                 return {
                     "order": order_record,
                     "rejected": True,
-                    "status": "REJECTED",
+                    "status": kite_status,
                     "mode": "LIVE",
-                    "message": f"Zerodha Kite REJECTED order: {status_message}"
+                    "message": f"Entry not filled ({kite_status}); order cancelled, no position opened. {status_message}"
                 }
 
-            # 6. Position Initialization
-            position = self._record_live_position(order_id, proposal, lot_size, filled_price)
+            position = self._record_live_position(
+                order_id, proposal, filled_qty, filled_price, tradingsymbol, exchange
+            )
+
+            try:
+                position["sl_order_id"] = self.place_protective_stop(position)
+                position["sl_trigger_synced"] = position["stop_loss"]
+                database.update_position_in_db(position)
+            except Exception as stop_err:
+                logger.critical(f"Protective stop FAILED for {tradingsymbol}: {stop_err}. Flattening position.")
+                try:
+                    exit_price, _ = self.exit_position(position)
+                    position["status"] = "CLOSED"
+                    position["exit_price"] = exit_price
+                    position["close_reason"] = "PROTECTIVE_STOP_FAILED"
+                    position["closed_at"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    database.update_position_in_db(position)
+                    return {
+                        "order": order_record,
+                        "rejected": True,
+                        "status": "REJECTED",
+                        "mode": "LIVE",
+                        "message": f"Entry filled but the protective stop could not be placed ({stop_err}); position was flattened for safety."
+                    }
+                except Exception as exit_err:
+                    logger.critical(f"EMERGENCY EXIT FAILED for {tradingsymbol}: {exit_err}. Position is UNPROTECTED at broker.")
+                    return {
+                        "order": order_record,
+                        "position": position,
+                        "status": kite_status,
+                        "mode": "LIVE",
+                        "message": f"WARNING: position is open WITHOUT a broker stop ({stop_err}); exit also failed ({exit_err}). Close it manually in Kite now."
+                    }
 
             return {
                 "order": order_record,
                 "position": position,
                 "status": kite_status,
                 "mode": "LIVE",
-                "message": f"Order executed on Zerodha Kite! Order ID: #{order_id} ({kite_status})"
+                "message": f"Order filled on Zerodha Kite (#{order_id}) with broker-side stop-loss #{position['sl_order_id']}."
             }
         except Exception as e:
             logger.error(f"Live Kite order placement failed: {e}")
-            raise RuntimeError(f"Kite order failed: {str(e)}")
+            err_str = str(e)
+            if "After Market Order" in err_str or "AMO" in err_str or "market is closed" in err_str.lower():
+                raise RuntimeError(
+                    "Market is currently closed. Live Intraday (MIS) orders on Zerodha can only be placed during market hours (09:15 AM – 03:30 PM IST). You can switch to Paper Trading mode in Settings to test anytime."
+                )
+            raise RuntimeError(f"Kite order failed: {err_str}")
 
     def close_position(self, position_id: str, reason: str = "MANUAL_EXIT") -> Dict[str, Any]:
-        """Routes square-off order to Zerodha Kite for live position termination."""
+        """Interface stub: live exits go through UnifiedTradingEngine.close_position -> close_live."""
         self.verify_outgoing_kite_request()
         return {"position_id": position_id, "reason": reason, "mode": "LIVE"}
 
@@ -508,10 +772,36 @@ class UnifiedTradingEngine:
         self.positions: Dict[str, Dict[str, Any]] = {}
         self.orders_history: List[Dict[str, Any]] = []
         self.pending_proposals: Dict[str, Dict[str, Any]] = {}
+        self.last_loss_times: Dict[str, datetime.datetime] = {}
         self._last_kite_margins: Optional[Dict[str, Any]] = None
+        self._lock = threading.RLock()  # serialises approvals/closes so one exit order is ever in flight
 
         self.load_credentials()
         self.load_open_positions()
+
+    def is_in_loss_lockout(self, symbol: str, cooldown_minutes: int = 45) -> Tuple[bool, int]:
+        """Checks whether symbol is in a mandatory loss lockout cooldown after a stop-loss hit."""
+        last_time = self.last_loss_times.get(symbol)
+        if not last_time:
+            return False, 0
+        elapsed = (datetime.datetime.now() - last_time).total_seconds() / 60.0
+        if elapsed < cooldown_minutes:
+            remaining = int(cooldown_minutes - elapsed)
+            return True, remaining
+        return False, 0
+
+    def auto_square_off_mis_positions(self) -> List[Dict[str, Any]]:
+        """
+        Executes automated square-off for all open MIS positions at 15:15 IST
+        to protect against Zerodha RMS penalty charges (₹50+GST) at 15:20 IST.
+        """
+        closed_records = []
+        for pid, pos in list(self.positions.items()):
+            if pos.get("status") == "OPEN":
+                rec = self.close_position(pid, reason="INTRADAY_AUTO_SQUAREOFF_1515")
+                closed_records.append(rec)
+                logger.warning(f"Auto-squared off open position {pid} ({pos.get('instrument')}) for 15:15 IST protection.")
+        return closed_records
 
     # -------------------------------------------------------------------------
     # Backward Compatibility Properties & Delegates
@@ -705,6 +995,10 @@ class UnifiedTradingEngine:
         Returns:
             Dict containing proposal payload with 60s expiration and PENDING status.
         """
+        problems = validate_signal(signal)
+        if problems:
+            raise ValueError("Trade signal rejected: " + " ".join(problems))
+
         proposal_id = str(uuid.uuid4())[:8]
         proposal = {
             "proposal_id": proposal_id,
@@ -724,50 +1018,141 @@ class UnifiedTradingEngine:
             "technical_rationale": signal["technical_rationale"],
             "status": OrderStatus.PENDING_APPROVAL,
             "created_at": datetime.datetime.now().strftime("%H:%M:%S"),
-            "expires_in_seconds": 60
+            "expires_in_seconds": 60,
+            "created_ts": time.time()
         }
         self.pending_proposals[proposal_id] = proposal
         database.save_suggestion(proposal)
         return proposal
 
+    PROPOSAL_EXPIRY_GRACE_SECONDS = 5
+
+    def _check_trading_limits(self) -> None:
+        """
+        Discipline limits, counted from the database so they survive restarts:
+        a cap on trades per day and a timed pause after a streak of consecutive losses.
+        """
+        today = datetime.date.today().strftime("%Y-%m-%d")
+        closed = database.get_closed_positions_on(today, self.mode)
+        open_count = sum(1 for p in self.positions.values() if p.get("mode", "PAPER") == self.mode)
+
+        if len(closed) + open_count >= settings.MAX_TRADES_PER_DAY:
+            raise ValueError(
+                f"Daily trade limit reached ({settings.MAX_TRADES_PER_DAY} trades today). "
+                "No more entries until tomorrow; overtrading is the fastest way to lose money."
+            )
+
+        streak = 0
+        for row in closed:
+            if (row.get("realized_pnl") or 0.0) < 0:
+                streak += 1
+            else:
+                break
+        if streak >= settings.MAX_CONSECUTIVE_LOSSES and closed:
+            try:
+                last_close = datetime.datetime.strptime(closed[0]["closed_at"], "%Y-%m-%d %H:%M:%S")
+            except (TypeError, ValueError):
+                last_close = datetime.datetime.now()
+            pause = datetime.timedelta(minutes=settings.LOSS_STREAK_PAUSE_MINUTES)
+            resume_at = last_close + pause
+            if datetime.datetime.now() < resume_at:
+                raise ValueError(
+                    f"Trading paused after {streak} consecutive losses. "
+                    f"New entries resume at {resume_at.strftime('%H:%M')}. Use the time to review, not to chase."
+                )
+    MAX_ENTRY_DRIFT_PCT_EQUITY = 1.0
+    MAX_ENTRY_DRIFT_PCT_OPTION = 5.0
+
+    def _check_entry_drift(self, proposal: Dict[str, Any]) -> None:
+        """Blocks the trade if the instrument's price has moved too far from the proposed entry."""
+        expected = float(proposal.get("entry_price") or 0.0)
+        if expected <= 0:
+            return
+        is_option = is_option_instrument(proposal["instrument"])
+        live = self.mode == "LIVE"
+
+        if is_option:
+            if not live:
+                return  # no option quotes in paper mode
+            current = self.kite_engine.get_option_ltp(proposal["instrument"])
+            limit = self.MAX_ENTRY_DRIFT_PCT_OPTION
+        else:
+            from market_data import market_data_manager
+            current = float(market_data_manager.get_quote(proposal["symbol"]).get("ltp") or 0.0)
+            limit = self.MAX_ENTRY_DRIFT_PCT_EQUITY
+
+        if not current or current <= 0:
+            if live:
+                raise ValueError("Cannot verify the current price of the instrument; trade blocked for safety.")
+            return
+
+        drift_pct = abs(current - expected) / expected * 100.0
+        if drift_pct > limit:
+            raise ValueError(
+                f"Slippage guard: price moved {drift_pct:.2f}% from the proposed entry "
+                f"(\u20b9{expected} \u2192 \u20b9{current}, limit {limit}%). Scan again for a fresh setup."
+            )
+
     def approve_trade(self, proposal_id: str) -> Dict[str, Any]:
         """
         Processes human trade confirmation ('Approve' click or voice command).
         Routes order to either Zerodha Kite (LIVE) or Paper Sandbox (PAPER).
-        
-        Args:
-            proposal_id: 8-character proposal identifier.
-            
-        Returns:
-            Dict of execution results including order record and active position.
+
+        Guards (all enforced server-side): proposal not expired, daily loss circuit breaker,
+        price has not drifted from the proposed entry, and LIVE mode never silently falls back to paper.
         """
-        proposal = self.pending_proposals.get(proposal_id)
-        if not proposal:
-            raise ValueError(f"Trade proposal {proposal_id} not found or expired.")
+        with self._lock:
+            proposal = self.pending_proposals.get(proposal_id)
+            if not proposal:
+                raise ValueError(f"Trade proposal {proposal_id} not found or expired.")
 
-        if proposal["status"] != OrderStatus.PENDING_APPROVAL:
-            raise ValueError(f"Proposal {proposal_id} already processed: {proposal['status']}")
+            if proposal["status"] != OrderStatus.PENDING_APPROVAL:
+                raise ValueError(f"Proposal {proposal_id} already processed: {proposal['status']}")
 
-        # Enforce strict lot size constraint (capped at 1 during incubation)
-        lot_size = min(proposal.get("lot_size", 1), settings.MAX_LOT_SIZE)
+            age = time.time() - float(proposal.get("created_ts", time.time()))
+            if age > proposal.get("expires_in_seconds", 60) + self.PROPOSAL_EXPIRY_GRACE_SECONDS:
+                proposal["status"] = "EXPIRED"
+                database.update_suggestion_status(proposal_id, "EXPIRED")
+                raise ValueError(f"Proposal {proposal_id} expired ({int(age)}s old). Scan again for a fresh setup.")
 
-        executed_trade = None
-        if self.mode == "LIVE" and self.kite_engine.kite_client and self.access_token:
-            executed_trade = self.kite_engine.execute_order(proposal, lot_size)
-        else:
-            executed_trade = self.paper_engine.execute_order(proposal, lot_size)
+            summary = self.get_portfolio_summary()
+            daily_pnl = summary.get("total_pnl", 0.0)
+            max_daily_loss = float(settings.MAX_DAILY_LOSS)
+            if daily_pnl <= -max_daily_loss:
+                raise ValueError(
+                    f"Daily Loss Circuit Breaker ACTIVATED: Total daily loss reached \u20b9{abs(daily_pnl):.2f} "
+                    f"(limit: \u20b9{max_daily_loss:.2f}). To protect your capital, no new trades are allowed today."
+                )
 
-        # Synchronize local positions
-        if "position" in executed_trade:
-            pos = executed_trade["position"]
-            self.positions[pos["position_id"]] = pos
+            self._check_trading_limits()
+            self._check_entry_drift(proposal)
 
-        if "order" in executed_trade:
-            self.orders_history.insert(0, executed_trade["order"])
+            lot_size = min(proposal.get("lot_size", 1), settings.MAX_LOT_SIZE)
 
-        proposal["status"] = OrderStatus.APPROVED
-        database.update_suggestion_status(proposal_id, "APPROVED")
-        return executed_trade
+            if self.mode == "LIVE":
+                if not (self.kite_engine.kite_client and self.access_token):
+                    raise ValueError(
+                        "LIVE mode is selected but Zerodha Kite is not connected. "
+                        "Refusing to fall back to paper trading silently; reconnect Kite or switch to PAPER."
+                    )
+                executed_trade = self.kite_engine.execute_order(proposal, lot_size)
+            else:
+                executed_trade = self.paper_engine.execute_order(proposal, lot_size)
+
+            if "position" in executed_trade:
+                pos = executed_trade["position"]
+                self.positions[pos["position_id"]] = pos
+
+            if "order" in executed_trade:
+                self.orders_history.insert(0, executed_trade["order"])
+
+            if executed_trade.get("rejected"):
+                proposal["status"] = OrderStatus.REJECTED
+                database.update_suggestion_status(proposal_id, "REJECTED")
+            else:
+                proposal["status"] = OrderStatus.APPROVED
+                database.update_suggestion_status(proposal_id, "APPROVED")
+            return executed_trade
 
     def reject_trade(self, proposal_id: str, reason: str = "User declined") -> Dict[str, Any]:
         """Records user rejection ('Reject' click or voice command)."""
@@ -849,44 +1234,27 @@ class UnifiedTradingEngine:
         database.save_order(exit_order, pos.get("proposal_id"))
         return exit_order
 
-    def close_position(self, position_id: str, reason: str = "MANUAL_EXIT") -> Dict[str, Any]:
-        """
-        Closes an active position and updates portfolio accounting.
-        
-        Decomposed Steps:
-            1. Resolve position from memory or database.
-            2. Compute realized P&L based on direction.
-            3. Update and persist position state.
-            4. Record offsetting exit order in audit log.
-            5. Evict position from active tracking pools.
-        """
-        pos = self._resolve_position(position_id)
-        if pos.get("status") == "CLOSED":
-            return {
-                "message": "Position was already closed.",
-                "pnl": pos.get("realized_pnl", 0.0),
-                "position": pos
-            }
-
-        exit_price = float(pos.get("current_ltp") or pos.get("buy_price") or 0.0)
-        buy_price = float(pos.get("buy_price") or exit_price)
+    def _finalize_close(self, pos: Dict[str, Any], exit_price: float, reason: str) -> Dict[str, Any]:
+        """Books a position that is already flat (paper fill or confirmed broker exit)."""
+        position_id = pos["position_id"]
         quantity = int(pos.get("quantity") or 1)
-
-        # Calculate P&L
         pnl = self._calculate_realized_pnl(pos, exit_price, quantity)
-        self.paper_balance += pnl
+        if pos.get("mode") != "LIVE":
+            self.paper_balance += pnl
         closed_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        # Persist position
         self._persist_closed_position(pos, exit_price, pnl, reason, closed_at)
-
-        # Record exit order
         exit_order = self._record_exit_order(pos, exit_price, quantity, pnl, closed_at)
 
-        # Evict from active memory
+        # Single-Loss 45-Minute Lockout Tracker
+        if pnl < 0 or reason == "STOP_LOSS_HIT":
+            sym = pos.get("symbol")
+            if sym:
+                self.last_loss_times[sym] = datetime.datetime.now()
+                logger.info(f"Loss recorded on {sym} ({reason}). 45-minute Loss Lockout cooldown active.")
+
         self.positions.pop(position_id, None)
-        if position_id in self.paper_engine.positions:
-            self.paper_engine.positions.pop(position_id, None)
+        self.paper_engine.positions.pop(position_id, None)
 
         return {
             "message": "Position closed successfully",
@@ -895,26 +1263,146 @@ class UnifiedTradingEngine:
             "position": pos
         }
 
+    def close_position(self, position_id: str, reason: str = "MANUAL_EXIT") -> Dict[str, Any]:
+        """
+        Closes an active position and updates portfolio accounting.
+
+        LIVE positions are flattened at the broker first (using the broker-side stop's fill if it
+        already triggered). The position is only marked closed once the broker confirms; if the exit
+        cannot be confirmed this raises and the position stays OPEN so it is retried / flagged.
+        """
+        with self._lock:
+            pos = self._resolve_position(position_id)
+            if pos.get("status") == "CLOSED":
+                return {
+                    "message": "Position was already closed.",
+                    "pnl": pos.get("realized_pnl", 0.0),
+                    "position": pos
+                }
+
+            if pos.get("mode") == "LIVE":
+                stop_id = pos.get("sl_order_id")
+                try:
+                    exit_price, exit_ref = self.kite_engine.close_live(pos)
+                except Exception as e:
+                    logger.critical(f"LIVE exit for {position_id} ({pos.get('instrument')}) NOT confirmed: {e}")
+                    raise RuntimeError(f"Live exit not confirmed by broker: {e}")
+                if stop_id and exit_ref == stop_id:
+                    reason = "STOP_LOSS_HIT"  # the broker-side stop fired
+            else:
+                exit_price = float(pos.get("current_ltp") or pos.get("buy_price") or 0.0)
+
+            return self._finalize_close(pos, exit_price, reason)
+
     # -------------------------------------------------------------------------
     # Mark-to-Market & Trigger Monitoring (SRP decomposed)
     # -------------------------------------------------------------------------
+
+    def sync_live_kite_positions(self) -> set:
+        """
+        In LIVE mode, fetches authentic MTM P&L and LTP from Zerodha Kite positions and returns the
+        set of position ids refreshed this tick (those use the real premium, not a simulated one).
+        """
+        synced: set = set()
+        if self.mode != "LIVE" or not self.is_authenticated():
+            return synced
+
+        try:
+            self.verify_outgoing_kite_request()
+            kite = self.kite_engine.kite_client
+            call_start = time.time()
+            log_outgoing_request("Zerodha Kite", "positions", {})
+            raw_pos = kite.positions()
+            dur = round((time.time() - call_start) * 1000, 2)
+            log_outgoing_response("Zerodha Kite", "positions", {"net_count": len(raw_pos.get("net", []))}, dur)
+
+            for np_item in raw_pos.get("net", []):
+                tsym = np_item.get("tradingsymbol", "")
+                ltp = float(np_item.get("last_price", 0.0))
+                pnl = float(np_item.get("m2m", np_item.get("pnl", 0.0)))
+
+                for pid, pos in self.positions.items():
+                    if pos.get("mode") != "LIVE" or pos.get("broker_symbol") != tsym:
+                        continue
+                    if ltp > 0:
+                        pos["current_ltp"] = ltp
+                        synced.add(pid)
+                    pos["unrealized_pnl"] = round(pnl, 2)
+                    buy_val = float(pos.get("buy_price", 1)) * float(pos.get("quantity", 1))
+                    pos["pnl_pct"] = round((pnl / buy_val) * 100, 2) if buy_val > 0 else 0.0
+                    database.update_position_in_db(pos)
+        except Exception as e:
+            logger.warning(f"Live Kite positions sync failed: {e}")
+        return synced
+
+    def reconcile_live_positions(self) -> Dict[str, Any]:
+        """
+        Compares locally tracked LIVE positions with the broker's net positions.
+        Local positions that are flat at the broker (e.g. the stop filled while this app was
+        offline) are booked as closed; broker positions this app does not track are only reported.
+        """
+        if not self.is_authenticated():
+            return {"checked": False, "reason": "Kite not connected."}
+        with self._lock:
+            self.verify_outgoing_kite_request()
+            net = {p["tradingsymbol"]: int(p.get("quantity", 0))
+                   for p in self.kite_engine.kite_client.positions().get("net", [])}
+            report: Dict[str, Any] = {"checked": True, "closed_locally": [], "untracked_at_broker": [], "ok": []}
+            tracked = set()
+            for pid, pos in list(self.positions.items()):
+                if pos.get("mode") != "LIVE":
+                    continue
+                symbol = pos.get("broker_symbol")
+                tracked.add(symbol)
+                if symbol and net.get(symbol, 0) == 0:
+                    exit_price = float(pos.get("current_ltp") or pos.get("buy_price") or 0.0)
+                    if pos.get("sl_order_id"):
+                        state = self.kite_engine._latest_order(pos["sl_order_id"])
+                        if state and state.get("status") == "COMPLETE":
+                            exit_price = float(state.get("average_price") or exit_price)
+                    self._finalize_close(pos, exit_price, "BROKER_RECONCILED")
+                    report["closed_locally"].append(pid)
+                else:
+                    report["ok"].append(pid)
+            report["untracked_at_broker"] = [s for s, q in net.items() if q != 0 and s not in tracked]
+            if report["untracked_at_broker"]:
+                logger.warning(f"Broker holds positions this app does not track: {report['untracked_at_broker']}")
+            return report
 
     def _calculate_effective_price(
         self,
         symbol: str,
         instrument: str,
-        current_ltp: float,
+        pos: Dict[str, Any],
         live_prices: Dict[str, float]
     ) -> float:
         """
         Calculates the effective instrument price.
-        For options derivatives, models premium delta movement (~0.5 delta).
+        If instrument is directly in live_prices, returns exact quote.
+        For options, models delta movement relative to the underlying's entry price.
         """
-        cur_price = live_prices.get(symbol, current_ltp)
-        if "CE" in instrument or "PE" in instrument:
-            delta_price = (cur_price - live_prices.get(symbol, cur_price)) * 0.5
-            return round(max(5.0, current_ltp + delta_price), 2)
-        return cur_price
+        # 1. Direct quote match
+        if instrument in live_prices and live_prices[instrument] > 0:
+            return live_prices[instrument]
+
+        clean_inst = instrument.replace(" MIS", "").replace(" CNC", "").strip()
+        if clean_inst in live_prices and live_prices[clean_inst] > 0:
+            return live_prices[clean_inst]
+
+        current_ltp = float(pos.get("current_ltp") or pos.get("buy_price", 0.0))
+        underlying_ltp = live_prices.get(symbol)
+
+        # 2. Options Delta Tracking
+        if is_option_instrument(instrument) and underlying_ltp:
+            entry_underlying = float(pos.get("underlying_entry") or underlying_ltp)
+            is_call = instrument.rstrip().endswith("CE") or "BUY_CALL" in pos.get("signal_type", "")
+            delta = 0.55  # Standard ATM delta
+            underlying_move = (underlying_ltp - entry_underlying) if is_call else (entry_underlying - underlying_ltp)
+            entry_price = float(pos.get("buy_price", current_ltp))
+            simulated_premium = entry_price + (underlying_move * delta)
+            return round(max(2.0, simulated_premium), 2)
+
+        return live_prices.get(symbol, current_ltp)
 
     def _evaluate_position_pnl(self, pos: Dict[str, Any], cur_price: float) -> Tuple[float, float]:
         """Calculates unrealized P&L and percentage return for a position."""
@@ -931,60 +1419,71 @@ class UnifiedTradingEngine:
         return pnl, pnl_pct
 
     def _check_exit_triggers(self, pos: Dict[str, Any], cur_price: float) -> Optional[str]:
-        """
-        Evaluates whether a position has reached its Stop-Loss or Target 1 threshold.
+        """Stop-loss / target / trailing evaluation (shared with the backtester via exit_rules)."""
+        return check_exit_triggers(pos, cur_price)
 
-        Returns:
-            Optional[str]: 'STOP_LOSS_HIT', 'TARGET_HIT', or None.
-        """
-        is_long = "BUY" in pos["signal_type"]
-        sl = float(pos["stop_loss"])
-        t1 = float(pos["target_1"])
-
-        if is_long:
-            if cur_price <= sl:
-                return "STOP_LOSS_HIT"
-            if cur_price >= t1:
-                return "TARGET_HIT"
-        else:
-            if cur_price >= sl:
-                return "STOP_LOSS_HIT"
-            if cur_price <= t1:
-                return "TARGET_HIT"
-
-        return None
+    def _sync_trailing_stop(self, pos: Dict[str, Any]) -> None:
+        """Keeps the broker-side stop in step with the software trailing stop-loss."""
+        synced = pos.get("sl_trigger_synced")
+        if synced is not None and abs(float(pos["stop_loss"]) - float(synced)) < 0.05:
+            return
+        try:
+            self.kite_engine.modify_protective_stop(pos)
+            pos["sl_trigger_synced"] = pos["stop_loss"]
+            logger.info(f"Broker stop for {pos.get('position_id')} moved to \u20b9{pos['stop_loss']}")
+        except Exception as e:
+            logger.error(f"Could not move broker stop for {pos.get('position_id')}: {e}")
 
     def update_positions_pnl(self, live_prices: Dict[str, float]) -> None:
         """
         Recalculates active positions P&L and triggers automatic Stop-Loss or Target exits.
-        
-        Decomposed Workflow:
-            1. Calculate effective price (with option delta).
-            2. Compute unrealized P&L and return percentage.
-            3. Evaluate SL/Target trigger breaches.
-            4. Auto-execute close_position on breached positions.
+
+        LIVE positions use the broker's real premium when available, notice when the broker-side
+        stop has already filled, and keep that stop in step with the trailing stop-loss.
         """
+        synced_ids: set = set()
+        broker_orders: Dict[str, Dict[str, Any]] = {}
+        if self.mode == "LIVE":
+            synced_ids = self.sync_live_kite_positions()
+            if any(p.get("sl_order_id") for p in self.positions.values()):
+                try:
+                    broker_orders = self.kite_engine.get_order_statuses()
+                except Exception as e:
+                    logger.warning(f"Could not fetch broker orders to monitor stops: {e}")
+
         to_close: List[Tuple[str, str]] = []
 
         for pid, pos in list(self.positions.items()):
             symbol = pos["symbol"]
-            cur_price = self._calculate_effective_price(
-                symbol, pos["instrument"], pos["current_ltp"], live_prices
-            )
+            if pid in synced_ids:
+                cur_price = float(pos["current_ltp"])
+            else:
+                cur_price = self._calculate_effective_price(symbol, pos["instrument"], pos, live_prices)
 
             pos["current_ltp"] = cur_price
             pnl, pnl_pct = self._evaluate_position_pnl(pos, cur_price)
             pos["unrealized_pnl"] = pnl
             pos["pnl_pct"] = pnl_pct
 
+            trigger_reason = self._check_exit_triggers(pos, cur_price)
+
+            if pos.get("mode") == "LIVE" and pos.get("sl_order_id"):
+                broker_stop = broker_orders.get(str(pos["sl_order_id"]))
+                if broker_stop and broker_stop.get("status") == "COMPLETE":
+                    trigger_reason = "STOP_LOSS_HIT"
+                elif not trigger_reason:
+                    self._sync_trailing_stop(pos)
+
             database.update_position_in_db(pos)
 
-            trigger_reason = self._check_exit_triggers(pos, cur_price)
             if trigger_reason:
                 to_close.append((pid, trigger_reason))
 
         for pid, reason in to_close:
-            self.close_position(pid, reason)
+            try:
+                self.close_position(pid, reason)
+            except Exception as e:
+                logger.error(f"Auto-exit of {pid} ({reason}) failed, will retry next tick: {e}")
 
     def get_portfolio_summary(self) -> Dict[str, Any]:
         """Returns consolidated high-level portfolio balance, P&L, and connectivity summary."""

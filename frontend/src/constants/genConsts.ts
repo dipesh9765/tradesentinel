@@ -1,12 +1,12 @@
 /**
- * Centralized General Constants (GenConsts) - KitePulse AI Frontend.
+ * Centralized General Constants (GenConsts) - TradeSentinel Frontend.
  * Eliminates magic strings, hardcoded numbers, and scattered configuration keys.
  */
 export const GenConsts = {
     // Session & LocalStorage Keys
     STORAGE_KEYS: {
-        AUTH_TOKEN: "kitepulse_auth_token",
-        OFFICE_MODE: "kitepulse_office_mode",
+        AUTH_TOKEN: "tradesentinel_auth_token",
+        OFFICE_MODE: "tradesentinel_office_mode",
     },
 
     // Authentication States

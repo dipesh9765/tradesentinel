@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { X, Key, ExternalLink, Check, Bell, Send, Eye, EyeOff, ShieldCheck, Sparkles, Lock } from "lucide-react";
-import { fetchSettingsApi } from "../../services/api";
+import { X, Key, ExternalLink, Check, Bell, Send, Eye, EyeOff, ShieldCheck, Lock, CheckCircle2, AlertCircle, Smartphone } from "lucide-react";
+import { fetchSettingsApi, generateKiteSessionApi } from "../../services/api";
+import { AIProviderSettings } from "./AIProviderSettings";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -16,7 +17,7 @@ interface SettingsModalProps {
     discord_webhook_url?: string;
     slack_webhook_url?: string;
   }) => Promise<void>;
-  currentMode: "PAPER" | "LIVE";
+  currentMode?: "PAPER" | "LIVE" | string;
   onOpenKiteLogin: () => void;
   onTestNotification: () => Promise<void>;
 }
@@ -25,26 +26,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
   onSave,
-  currentMode,
+  currentMode = "PAPER",
   onOpenKiteLogin,
   onTestNotification
 }) => {
   const [kiteKey, setKiteKey] = useState("");
   const [kiteSecret, setKiteSecret] = useState("");
   const [kiteToken, setKiteToken] = useState("");
-  const [geminiKey, setGeminiKey] = useState("");
   const [telegramToken, setTelegramToken] = useState("");
   const [telegramChatId, setTelegramChatId] = useState("");
   const [discordWebhook, setDiscordWebhook] = useState("");
   const [slackWebhook, setSlackWebhook] = useState("");
-  const [mode, setMode] = useState<"PAPER" | "LIVE">(currentMode);
+  const [mode, setMode] = useState<"PAPER" | "LIVE">((currentMode as "PAPER" | "LIVE") || "PAPER");
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [testingNotification, setTestingNotification] = useState(false);
   const [configuredStatus, setConfiguredStatus] = useState<any>(null);
 
+  // Manual OAuth Redirect / Request Token helper state
+  const [pastedRedirectInput, setPastedRedirectInput] = useState("");
+  const [isActivatingSession, setIsActivatingSession] = useState(false);
+  const [sessionSuccessMessage, setSessionSuccessMessage] = useState<string | null>(null);
+  const [sessionErrorMessage, setSessionErrorMessage] = useState<string | null>(null);
+
   // Field visibility toggles
-  const [showGeminiKey, setShowGeminiKey] = useState(false);
   const [showKiteSecret, setShowKiteSecret] = useState(false);
   const [showKiteToken, setShowKiteToken] = useState(false);
   const [showTelegramToken, setShowTelegramToken] = useState(false);
@@ -74,7 +79,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         kite_api_key: kiteKey || undefined,
         kite_api_secret: kiteSecret || undefined,
         kite_access_token: kiteToken || undefined,
-        gemini_api_key: geminiKey || undefined,
         trading_mode: mode,
         telegram_bot_token: telegramToken || undefined,
         telegram_chat_id: telegramChatId || undefined,
@@ -90,6 +94,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       alert("Failed to save settings: " + err);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleActivateSessionFromRedirect = async () => {
+    if (!pastedRedirectInput.trim()) {
+      setSessionErrorMessage("Please paste the redirect URL or request_token first.");
+      return;
+    }
+    setIsActivatingSession(true);
+    setSessionErrorMessage(null);
+    setSessionSuccessMessage(null);
+    try {
+      await generateKiteSessionApi(pastedRedirectInput.trim());
+      setSessionSuccessMessage("✅ Zerodha Kite daily session authenticated successfully!");
+      setPastedRedirectInput("");
+      const updated = await fetchSettingsApi();
+      setConfiguredStatus(updated);
+    } catch (e: any) {
+      setSessionErrorMessage(e.message || "Failed to generate session. Please check your Kite API Secret.");
+    } finally {
+      setIsActivatingSession(false);
     }
   };
 
@@ -336,57 +361,62 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 Tip: Click <strong>Kite OAuth Login</strong> above to automatically generate this token each morning with 1 click.
               </span>
             </div>
-          </div>
 
-          {/* Section 3: Gemini AI API Key */}
-          <div style={{
-            background: "#0f1523",
-            padding: "16px",
-            borderRadius: "12px",
-            border: "1px solid rgba(255, 255, 255, 0.1)",
-            display: "flex",
-            flexDirection: "column",
-            gap: "10px"
-          }}>
-            <div className="form-group">
-              <label className="form-label" htmlFor="gemini-api-key">
-                <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <Sparkles size={15} color="var(--color-cyan)" /> Google Gemini API Key
+            {/* Mobile & Remote Kite Session Activator */}
+            <div style={{
+              background: "rgba(0, 240, 255, 0.04)",
+              border: "1px dashed rgba(0, 240, 255, 0.3)",
+              borderRadius: "8px",
+              padding: "12px",
+              marginTop: "4px"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+                <Smartphone size={16} color="var(--color-cyan)" />
+                <span style={{ fontSize: "12px", fontWeight: 700, color: "#ffffff" }}>
+                  Mobile & Remote OAuth Token Helper
                 </span>
-                <a
-                  href="https://aistudio.google.com/app/apikey"
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ fontSize: "11.5px", color: "var(--color-cyan)", textDecoration: "none", display: "flex", alignItems: "center", gap: "3px" }}
-                >
-                  Get Free Key <ExternalLink size={11} />
-                </a>
-              </label>
-              <div className="form-input-container">
+              </div>
+              <p style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "8px", lineHeight: "1.4" }}>
+                If Zerodha redirects to a broken <em>localhost</em> URL on your phone, copy the entire URL or <code>request_token</code> from your mobile browser bar and paste it below:
+              </p>
+              
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                 <input
-                  id="gemini-api-key"
-                  type={showGeminiKey ? "text" : "password"}
-                  placeholder={configuredStatus?.gemini_api_key_preview || "AIzaSy..."}
-                  value={geminiKey}
-                  onChange={(e) => setGeminiKey(e.target.value)}
+                  type="text"
+                  placeholder="Paste URL (e.g. http://localhost:5173/?request_token=...)"
+                  value={pastedRedirectInput}
+                  onChange={(e) => setPastedRedirectInput(e.target.value)}
                   className="form-input"
-                  style={{ paddingRight: "40px" }}
-                  autoComplete="off"
+                  style={{ flex: "1 1 200px", fontSize: "12px", padding: "8px 10px" }}
                 />
                 <button
                   type="button"
-                  onClick={() => setShowGeminiKey(!showGeminiKey)}
-                  className="form-input-action"
-                  title={showGeminiKey ? "Hide key" : "Show key"}
+                  onClick={handleActivateSessionFromRedirect}
+                  disabled={isActivatingSession}
+                  className="btn btn-primary"
+                  style={{ padding: "8px 14px", fontSize: "12px", whiteSpace: "nowrap" }}
                 >
-                  {showGeminiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {isActivatingSession ? "Activating..." : "Activate Session"}
                 </button>
               </div>
-              <span className="form-hint">
-                Powers real-time technical analysis, Put/Call strike suggestions, and Stop-Loss calculations using Gemini 2.5 Pro.
-              </span>
+
+              {sessionSuccessMessage && (
+                <div style={{ marginTop: "8px", fontSize: "11.5px", color: "var(--color-bull)", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <CheckCircle2 size={14} />
+                  <span>{sessionSuccessMessage}</span>
+                </div>
+              )}
+              {sessionErrorMessage && (
+                <div style={{ marginTop: "8px", fontSize: "11.5px", color: "var(--color-bear)", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <AlertCircle size={14} />
+                  <span>{sessionErrorMessage}</span>
+                </div>
+              )}
             </div>
           </div>
+
+          {/* Section 3: AI Provider & Model */}
+          <AIProviderSettings />
 
           {/* Section 4: Office App Notifications */}
           <div style={{

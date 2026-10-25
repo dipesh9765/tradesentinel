@@ -1,5 +1,5 @@
 """
-Cryptographic Security & Session Vault Architecture - KitePulse AI
+Cryptographic Security & Session Vault Architecture - TradeSentinel
 
 This module implements enterprise security protocols protecting trading credentials
 and authorization barriers:
@@ -7,7 +7,8 @@ and authorization barriers:
 2. Constant-time timing-attack mitigation using `secrets.compare_digest`.
 3. Master Key Derivation Function (KDF) producing 32-byte URL-safe base64 keys.
 4. AES-128-CBC encryption with PKCS7 padding and HMAC-SHA256 authentication (via Fernet).
-5. Sliding-window memory session tokens with cryptographic entropy (secrets.token_urlsafe).
+5. In-memory session tokens with a fixed 24-hour lifetime and cryptographic entropy (secrets.token_urlsafe).
+6. Login brute-force throttling: repeated failures from one client lock further attempts briefly.
 """
 
 import os
@@ -22,7 +23,7 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 # In-memory active session tokens: token -> {"created_at": float, "expires_at": float}
 ACTIVE_SESSIONS: Dict[str, Dict[str, float]] = {}
-SESSION_DURATION_SECONDS: int = 86400  # 24 hours sliding window
+SESSION_DURATION_SECONDS: int = 86400  # fixed 24-hour lifetime
 
 
 def hash_password(password: str, salt: Optional[bytes] = None) -> Tuple[str, str]:
@@ -190,3 +191,31 @@ def has_active_session() -> bool:
     """
     cleanup_expired_sessions()
     return len(ACTIVE_SESSIONS) > 0
+
+
+# ---------------------------------------------------------------------------
+# Login brute-force throttling (in memory, per client key such as an IP address)
+# ---------------------------------------------------------------------------
+
+MAX_LOGIN_FAILURES: int = 5
+LOGIN_LOCKOUT_SECONDS: int = 60
+LOGIN_FAILURE_WINDOW_SECONDS: int = 300
+_LOGIN_FAILURES: Dict[str, list] = {}
+
+
+def login_lockout_remaining(client_key: str) -> int:
+    """Seconds a client must still wait before another login attempt (0 when allowed)."""
+    now = time.time()
+    recent = [t for t in _LOGIN_FAILURES.get(client_key, []) if now - t < LOGIN_FAILURE_WINDOW_SECONDS]
+    _LOGIN_FAILURES[client_key] = recent
+    if len(recent) >= MAX_LOGIN_FAILURES:
+        return max(0, int(recent[-1] + LOGIN_LOCKOUT_SECONDS - now) + 1)
+    return 0
+
+
+def register_login_failure(client_key: str) -> None:
+    _LOGIN_FAILURES.setdefault(client_key, []).append(time.time())
+
+
+def clear_login_failures(client_key: str) -> None:
+    _LOGIN_FAILURES.pop(client_key, None)

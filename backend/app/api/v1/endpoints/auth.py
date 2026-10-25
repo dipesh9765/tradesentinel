@@ -3,17 +3,20 @@ Authentication & Cryptographic Vault Endpoints
 """
 
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials
 
 import database
 from security import (
     create_session_token,
     validate_session_token,
-    invalidate_session_token
+    invalidate_session_token,
+    login_lockout_remaining,
+    register_login_failure,
+    clear_login_failures
 )
 from kite_executor import kite_executor
-from gemini_analyzer import gemini_analyzer
+from trade_analyzer import trade_analyzer
 from app.models.schemas import SetupRequest, LoginRequest
 from app.api.deps import require_auth, security_scheme
 
@@ -49,7 +52,7 @@ def setup_master_password_endpoint(req: SetupRequest):
         )
     database.setup_master_password(req.password)
     kite_executor.load_credentials()
-    gemini_analyzer.load_credentials()
+    trade_analyzer.load_credentials()
     token = create_session_token()
     return {
         "success": True,
@@ -59,21 +62,31 @@ def setup_master_password_endpoint(req: SetupRequest):
 
 
 @router.post("/api/auth/login")
-def login_master_password(req: LoginRequest):
+def login_master_password(req: LoginRequest, request: Request):
     """Authenticates against PBKDF2 hash and unlocks encrypted Fernet vault."""
     if not database.is_master_password_set():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="System not initialized. Master password setup required."
         )
+    client_key = request.client.host if request.client else "unknown"
+    wait = login_lockout_remaining(client_key)
+    if wait:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many failed attempts. Try again in {wait} seconds.",
+            headers={"Retry-After": str(wait)}
+        )
     is_valid = database.verify_and_unlock_master_password(req.password)
     if not is_valid:
+        register_login_failure(client_key)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect master password."
         )
+    clear_login_failures(client_key)
     kite_executor.load_credentials()
-    gemini_analyzer.load_credentials()
+    trade_analyzer.load_credentials()
     token = create_session_token()
     return {
         "success": True,

@@ -110,7 +110,7 @@ export const AuthGatekeeper: React.FC<AuthGatekeeperProps> = ({
           </div>
 
           <h1 style={{ fontSize: "24px", fontWeight: 800, color: "#ffffff", letterSpacing: "0.5px" }}>
-            {isInitialized ? "KitePulse Security Vault" : "Create Master Security Key"}
+            {isInitialized ? "TradeSentinel Security Vault" : "Create Master Security Key"}
           </h1>
           <p style={{ fontSize: "13.5px", color: "#94a3b8", marginTop: "6px", lineHeight: "1.5" }}>
             {isInitialized

@@ -2,14 +2,18 @@
 System Settings, Secure Vault & Broker Connectivity Endpoints
 """
 
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+
+import ai_providers
 
 import database
 from app.config import settings, load_instruments_data
 from app.api.deps import require_auth
 from app.models.schemas import SettingsUpdateRequest, ModeUpdateRequest, KiteSessionRequest
 from kite_executor import kite_executor
-from gemini_analyzer import gemini_analyzer
+from trade_analyzer import trade_analyzer
 from market_data import market_data_manager
 from notifications import notification_service
 from server_logger import log_config_saved
@@ -47,9 +51,69 @@ def get_settings():
         "discord_webhook_url": notification_service.config.discord_webhook_url or "",
         "slack_webhook_url": notification_service.config.slack_webhook_url or "",
         "office_mode": notification_service.config.office_mode,
-        "gemini_active": bool(gemini_analyzer.client),
+        "gemini_active": bool(trade_analyzer.client),
+        "ai_provider": ai_providers.get_active_provider(),
+        "ai_active": ai_providers.is_configured(),
         "kite_active": kite_executor.is_authenticated()
     }
+
+
+class AIConfigUpdate(BaseModel):
+    provider: Optional[str] = None  # provider to make active
+    model: Optional[str] = None  # model for `target_provider` (defaults to `provider`)
+    target_provider: Optional[str] = None
+    api_key: Optional[str] = None  # key for `target_provider`
+
+
+@router.get("/api/ai/config", dependencies=[Depends(require_auth)])
+def get_ai_config():
+    """Returns AI provider choices, selected models and which providers have keys (never raw keys)."""
+    return ai_providers.describe_config()
+
+
+@router.post("/api/ai/config", dependencies=[Depends(require_auth)])
+def update_ai_config(req: AIConfigUpdate):
+    """Saves the active provider, a provider's model and/or its API key to the encrypted vault."""
+    target = req.target_provider or req.provider
+    if target and target not in ai_providers.PROVIDERS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unknown AI provider '{target}'.")
+    modified = []
+    try:
+        if req.api_key and req.api_key.strip():
+            if not target:
+                raise ValueError("Specify which provider the API key belongs to.")
+            ai_providers.set_api_key(target, req.api_key)
+            modified.append(ai_providers.PROVIDERS[target]["key_setting"])
+        if req.model and req.model.strip():
+            if not target:
+                raise ValueError("Specify which provider the model belongs to.")
+            ai_providers.set_model(target, req.model)
+            modified.append(ai_providers.PROVIDERS[target]["model_setting"])
+        if req.provider:
+            ai_providers.set_active_provider(req.provider)
+            modified.append(ai_providers.AI_PROVIDER_SETTING)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    log_config_saved("api/ai/config", modified)
+    return {"success": True, **ai_providers.describe_config()}
+
+
+@router.post("/api/ai/test", dependencies=[Depends(require_auth)])
+def test_ai_provider(req: AIConfigUpdate):
+    """Makes one tiny live call to verify a provider/model/key combination works."""
+    provider = req.target_provider or req.provider or ai_providers.get_active_provider()
+    if provider not in ai_providers.PROVIDERS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unknown AI provider '{provider}'.")
+    try:
+        ai_providers.generate_json(
+            'Reply with exactly this JSON: {"ok": true}',
+            provider=provider,
+            model=(req.model or "").strip() or None,
+            api_key=(req.api_key or "").strip() or None,
+        )
+    except ai_providers.AIProviderError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return {"success": True, "provider": provider}
 
 
 @router.post("/api/notifications/test", dependencies=[Depends(require_auth)])
@@ -65,7 +129,7 @@ async def test_notifications_endpoint():
         "target_1": 165.0,
         "risk_reward": "1:2.0",
         "confidence": 95,
-        "verbal_pitch": f"Test notification for {test_symbol} from KitePulse AI",
+        "verbal_pitch": f"Test notification for {test_symbol} from TradeSentinel",
         "technical_rationale": "System verification of webhook channels"
     }
     await notification_service.notify_trade_proposal(test_proposal)
@@ -79,7 +143,7 @@ def update_settings(req: SettingsUpdateRequest):
         clean_key = req.gemini_api_key.strip()
         database.save_secure_setting("GEMINI_API_KEY", clean_key)
         settings.GEMINI_API_KEY = clean_key
-        gemini_analyzer.update_api_key(clean_key)
+        trade_analyzer.update_api_key(clean_key)
 
     if req.kite_api_key:
         clean_api_key = req.kite_api_key.strip()
@@ -135,7 +199,7 @@ def update_settings(req: SettingsUpdateRequest):
     return {
         "success": True,
         "mode": kite_executor.mode,
-        "gemini_active": bool(gemini_analyzer.client),
+        "gemini_active": bool(trade_analyzer.client),
         "kite_active": kite_executor.is_authenticated(),
         "office_mode": notification_service.config.office_mode
     }

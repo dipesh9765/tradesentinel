@@ -1,5 +1,5 @@
 """
-Root re-export shim for GenConsts - KitePulse AI Backend.
+Root re-export shim for GenConsts - TradeSentinel Backend.
 Allows seamless access to GenConsts from root-level scripts and modules.
 """
 

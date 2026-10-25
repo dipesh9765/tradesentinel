@@ -1,5 +1,5 @@
 """
-KitePulse AI - Application Entrypoint & Lifespan Orchestrator
+TradeSentinel - Application Entrypoint & Lifespan Orchestrator
 FastAPI Enterprise Application Factory
 """
 
@@ -45,8 +45,20 @@ async def background_market_worker() -> None:
     updates open position P&L, and checks stop-loss / target triggers.
     Enforces strict zero dummy data integrity.
     """
+    reconciled_token = None
     while True:
         try:
+            # Once per Kite session: compare tracked LIVE positions with the broker's, so anything that
+            # closed while this app was offline (e.g. the broker-side stop fired) is booked correctly.
+            if (kite_executor.mode == "LIVE" and kite_executor.is_authenticated()
+                    and kite_executor.access_token != reconciled_token):
+                reconciled_token = kite_executor.access_token
+                try:
+                    report = await asyncio.to_thread(kite_executor.reconcile_live_positions)
+                    logger.info(f"Startup position reconcile: {report}")
+                except Exception as e:
+                    logger.error(f"Startup position reconcile failed: {e}")
+
             if market_data_manager.is_configured():
                 updated = market_data_manager.refresh_live_quotes()
                 if updated:
@@ -79,18 +91,24 @@ async def lifespan(app: FastAPI):
     FastAPI Lifespan context manager:
     Initializes background workers on startup and cleanly cancels them on shutdown.
     """
-    logger.info("Initializing KitePulse background market sync & P&L monitor...")
+    from scanner import opportunity_scanner
+
+    logger.info("Initializing TradeSentinel background market sync & P&L monitor...")
     market_task = asyncio.create_task(background_market_worker())
-    logger.info("Initializing KitePulse 30-second token verification heartbeat...")
+    logger.info("Initializing TradeSentinel 30-second token verification heartbeat...")
     token_task = asyncio.create_task(periodic_30s_token_verification_worker())
-    
+    logger.info("Initializing Autonomous Market Opportunity Scanner...")
+    scanner_task = asyncio.create_task(opportunity_scanner.start_loop())
+
     yield
 
-    logger.info("Shutting down KitePulse background tasks...")
+    logger.info("Shutting down TradeSentinel background tasks...")
     market_task.cancel()
     token_task.cancel()
-    await asyncio.gather(market_task, token_task, return_exceptions=True)
-    logger.info("KitePulse background tasks terminated.")
+    scanner_task.cancel()
+    opportunity_scanner.stop()
+    await asyncio.gather(market_task, token_task, scanner_task, return_exceptions=True)
+    logger.info("TradeSentinel background tasks terminated.")
 
 
 tags_metadata = [
@@ -103,7 +121,7 @@ tags_metadata = [
 
 
 def create_app() -> FastAPI:
-    """Application factory for KitePulse AI FastAPI REST server."""
+    """Application factory for TradeSentinel FastAPI REST server."""
     app = FastAPI(
         title=settings.APP_NAME,
         version=settings.APP_VERSION,
@@ -126,7 +144,7 @@ def create_app() -> FastAPI:
             "http://localhost:8000",
             "http://127.0.0.1:8000"
         ],
-        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$",
+        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|100\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|.*\.ts\.net)(:[0-9]+)?$",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

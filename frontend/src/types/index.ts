@@ -1,5 +1,5 @@
 /**
- * KitePulse AI - Domain Type Definitions & Schemas
+ * TradeSentinel - Domain Type Definitions & Schemas
  *
  * This module defines the core TypeScript interfaces representing market quotes,
  * historical candlestick intervals, AI trade proposals, active positions,
@@ -54,8 +54,10 @@ export interface Candle {
   volume: number;
   /** 9-period Exponential Moving Average */
   ema_9?: number;
+  ema9?: number;
   /** 21-period Exponential Moving Average */
   ema_21?: number;
+  ema21?: number;
   /** Volume Weighted Average Price benchmark */
   vwap?: number;
   /** 14-period Relative Strength Index oscillator (0 - 100) */
@@ -89,14 +91,22 @@ export interface TradeProposal {
   target_1: number;
   /** Secondary extended profit target */
   target_2: number;
+  /** Legacy/generic target alias */
+  target?: number;
   /** Calculated risk-to-reward ratio formatted string (e.g. '1:2.0') */
   risk_reward: string;
   /** Algorithmic conviction score (50% to 99%) */
   confidence: number;
+  /** Institutional reasoning rationale */
+  reasoning?: string;
   /** Synthesized audio script for spoken radar feedback */
   verbal_pitch: string;
   /** Institutional technical indicator rationale */
   technical_rationale: string;
+  /** Quantitative confluence score (0 to 100) */
+  confluence_score?: number;
+  /** Market regime */
+  regime?: string;
   /** Lifecycle approval state */
   status: "PENDING_APPROVAL" | "APPROVED" | "REJECTED" | "CANCELLED";
   /** Proposal generation time string (HH:MM:SS) */

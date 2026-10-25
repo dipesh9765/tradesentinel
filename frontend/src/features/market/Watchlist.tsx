@@ -6,8 +6,8 @@ interface WatchlistProps {
   quotes: Quote[];
   selectedSymbol: string;
   onSelectSymbol: (symbol: string) => void;
-  onScanSymbol: (symbol: string) => void;
-  isScanning: boolean;
+  onScanSymbol?: (symbol: string) => void;
+  isScanning?: boolean;
 }
 
 export const Watchlist: React.FC<WatchlistProps> = ({
@@ -15,7 +15,7 @@ export const Watchlist: React.FC<WatchlistProps> = ({
   selectedSymbol,
   onSelectSymbol,
   onScanSymbol,
-  isScanning
+  isScanning = false
 }) => {
   return (
     <div className="glass-panel" style={{ padding: "18px", height: "100%" }}>
@@ -94,7 +94,7 @@ export const Watchlist: React.FC<WatchlistProps> = ({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onScanSymbol(quote.symbol);
+                    onScanSymbol?.(quote.symbol);
                   }}
                   disabled={isScanning}
                   className="btn btn-secondary"
@@ -103,7 +103,7 @@ export const Watchlist: React.FC<WatchlistProps> = ({
                     borderRadius: "6px",
                     borderColor: isSelected ? "var(--border-glow)" : undefined
                   }}
-                  title={`Scan ${quote.symbol} with Gemini`}
+                  title={`Scan ${quote.symbol}`}
                 >
                   <Sparkles size={13} color="var(--color-cyan)" />
                 </button>

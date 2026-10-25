@@ -1,15 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import confetti from "canvas-confetti";
-import { ShieldAlert, Lock } from "lucide-react";
+import { ShieldAlert, Lock, TrendingUp, List, Layers } from "lucide-react";
 import { Header } from "./components/layout";
-import { VoiceRadar } from "./features/voice";
 import { TradeProposalCard, PositionsTable } from "./features/trading";
 import { TradingChart, Watchlist } from "./features/market";
 import { SettingsModal } from "./features/settings";
 import { AuthGatekeeper } from "./features/auth";
 
 import type { Quote, Candle, TradeProposal, Position, OrderRecord, PortfolioSummary, HistoryItem, KiteBalance } from "./types";
-import { speechService, type VoiceCommand } from "./services/speech";
 import { soundManager } from "./services/sound";
 import { notificationManager } from "./services/notifications";
 import {
@@ -57,28 +55,17 @@ export const App: React.FC = () => {
     const [isLoadingKiteBalance, setIsLoadingKiteBalance] = useState<boolean>(false);
     const [lastBalanceRefreshTime, setLastBalanceRefreshTime] = useState<string | null>(null);
 
-    // Office Mode: Default to true
-    const [officeMode, setOfficeMode] = useState<boolean>(true);
     const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>("default");
-
     const [isScanning, setIsScanning] = useState<boolean>(false);
-    const [isListening, setIsListening] = useState<boolean>(false);
-    const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
-    const [isMuted, setIsMuted] = useState<boolean>(true);
-    const [transcript, setTranscript] = useState<string>("");
     const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+    const [mobileTab, setMobileTab] = useState<"chart" | "watchlist" | "positions">("chart");
 
     const proposalRef = useRef<TradeProposal | null>(proposal);
-    const officeModeRef = useRef<boolean>(officeMode);
     const selectedSymbolRef = useRef<string>(selectedSymbol);
 
     useEffect(() => {
         proposalRef.current = proposal;
     }, [proposal]);
-
-    useEffect(() => {
-        officeModeRef.current = officeMode;
-    }, [officeMode]);
 
     useEffect(() => {
         selectedSymbolRef.current = selectedSymbol;
@@ -172,9 +159,6 @@ export const App: React.FC = () => {
                 setProposal(data.proposal);
                 soundManager.playAlert();
                 notificationManager.notifyTradeProposal(data.proposal);
-                if (!officeModeRef.current) {
-                    speakPitch(data.proposal.verbal_pitch);
-                }
             } else if (data.type === "TRADE_EXECUTED_ALERT" && data.execution) {
                 const ord = data.execution.order;
                 if (ord) {
@@ -210,7 +194,6 @@ export const App: React.FC = () => {
         return () => {
             unsubscribe();
             window.removeEventListener("keydown", handleKeyDown);
-            speechService.stopListening();
         };
     }, [authState]);
 
@@ -218,7 +201,6 @@ export const App: React.FC = () => {
     useEffect(() => {
         if (authState !== GenConsts.AUTH_STATES.AUTHENTICATED) return;
 
-        // Verify token validity every 30 seconds
         const heartbeatInterval = setInterval(async () => {
             try {
                 const res = await verifyAuthTokenApi();
@@ -320,30 +302,6 @@ export const App: React.FC = () => {
         }
     };
 
-    // Voice Interaction Handlers
-    const startVoiceEngine = () => {
-        speechService.startListening(
-            (command: VoiceCommand, rawText: string) => {
-                handleVoiceCommand(command, rawText);
-            },
-            (text: string) => {
-                setTranscript(text);
-            }
-        );
-        setIsListening(true);
-    };
-
-    const handleVoiceCommand = async (command: VoiceCommand, _rawText: string) => {
-        const activeProposal = proposalRef.current;
-        if (command === "APPROVE" && activeProposal && activeProposal.status === "PENDING_APPROVAL") {
-            await handleApproveProposal(activeProposal.proposal_id);
-        } else if (command === "REJECT" && activeProposal && activeProposal.status === "PENDING_APPROVAL") {
-            await handleRejectProposal(activeProposal.proposal_id);
-        } else if (command === "SCAN") {
-            await handleTriggerScan(selectedSymbol);
-        }
-    };
-
     const handleTriggerScan = async (symbol: string) => {
         if (!kiteConnected) {
             alert("Zerodha Kite Connect is not configured or authenticated. Please add credentials in Settings to scan live market setups.");
@@ -359,23 +317,11 @@ export const App: React.FC = () => {
             await loadHistory();
             soundManager.playAlert();
             notificationManager.notifyTradeProposal(newProposal);
-
-            if (!officeMode) {
-                speakPitch(newProposal.verbal_pitch);
-            }
         } catch (err: any) {
             alert("Scan failed: " + err.message);
         } finally {
             setIsScanning(false);
         }
-    };
-
-    const speakPitch = (text: string) => {
-        if (officeMode) return;
-        setIsSpeaking(true);
-        speechService.speak(text, () => {
-            setIsSpeaking(false);
-        });
     };
 
     const handleApproveProposal = async (proposalId: string) => {
@@ -395,10 +341,6 @@ export const App: React.FC = () => {
             await loadHistory();
 
             confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
-
-            if (!officeMode) {
-                speakPitch("Trade approved and order placed on Kite. Lot size is 1.");
-            }
         } catch (err: any) {
             alert("Trade execution error: " + err.message);
         }
@@ -410,9 +352,6 @@ export const App: React.FC = () => {
             await rejectTradeApi(proposalId);
             setProposal(null);
             await loadHistory();
-            if (!officeMode) {
-                speakPitch("Trade suggestion passed.");
-            }
         } catch (err: any) {
             alert("Rejection error: " + err.message);
         }
@@ -431,47 +370,23 @@ export const App: React.FC = () => {
             setOrders(ordersData);
             setPortfolio(statusData.portfolio);
             await loadHistory();
-            if (!officeMode) {
-                speakPitch("Position closed successfully.");
-            }
         } catch (err: any) {
             alert("Failed to close position: " + err.message);
         }
-    };
-
-    const handleToggleOfficeMode = () => {
-        const nextOffice = !officeMode;
-        setOfficeMode(nextOffice);
-        if (nextOffice) {
-            setIsMuted(true);
-            speechService.setMuted(true);
-            speechService.stopListening();
-            setIsListening(false);
-        } else {
-            setIsMuted(false);
-            speechService.setMuted(false);
-            startVoiceEngine();
-        }
-    };
-
-    const handleToggleMute = () => {
-        const nextMuted = !isMuted;
-        setIsMuted(nextMuted);
-        speechService.setMuted(nextMuted);
     };
 
     const handleRequestNotificationPermission = async () => {
         const granted = await notificationManager.requestPermission();
         setNotificationPermission(notificationManager.getPermission());
         if (granted) {
-            notificationManager.sendNotification("🚀 KitePulse AI Alerts Active", {
-                body: "Windows notifications will now pop up whenever Gemini spots a trade setup!"
+            notificationManager.sendNotification("🚀 TradeSentinel Alerts Active", {
+                body: "Windows notifications will now pop up whenever an A+ setup is spotted!"
             });
         }
     };
 
     const handleSaveSettings = async (newSettings: any) => {
-        await updateSettingsApi({ ...newSettings, office_mode: officeMode });
+        await updateSettingsApi(newSettings);
         const statusData = await fetchStatus();
         setPortfolio(statusData.portfolio);
         setKiteConnected(Boolean(statusData.kite_active));
@@ -490,8 +405,8 @@ export const App: React.FC = () => {
     };
 
     const handleTestNotification = async () => {
-        notificationManager.sendNotification("🎯 KitePulse AI: Test Alert (Office Mode)", {
-            body: "Sample: NIFTY 24850 CE Buy @ 120, SL: 102, Target: 156. Notifications working properly!"
+        notificationManager.sendNotification("🎯 TradeSentinel: Opportunity Alert", {
+            body: "Sample: NIFTY 24850 CE Buy @ 120, SL: 108, Target: 156. Notifications working properly!"
         });
         await testNotificationApi();
     };
@@ -506,13 +421,12 @@ export const App: React.FC = () => {
     };
 
     // ==================== SECURITY GATEKEEPER LOCK ====================
-    // If not authenticated, do NOT render dashboard, chart, or watchlist!
     if (authState === GenConsts.AUTH_STATES.CHECKING) {
         return (
             <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#060911", color: "#00f0ff" }}>
                 <div style={{ textAlign: "center" }}>
                     <Lock size={36} style={{ animation: "pulse 1.5s infinite", margin: "0 auto 16px" }} />
-                    <div style={{ fontSize: "16px", fontWeight: 700, letterSpacing: "0.5px" }}>Verifying KitePulse Security Vault...</div>
+                    <div style={{ fontSize: "16px", fontWeight: 700, letterSpacing: "0.5px" }}>Verifying TradeSentinel Security Vault...</div>
                 </div>
             </div>
         );
@@ -529,7 +443,7 @@ export const App: React.FC = () => {
 
     // ==================== AUTHENTICATED APPLICATION ====================
     return (
-        <div style={{ maxWidth: "1500px", margin: "0 auto", padding: "20px" }}>
+        <div className="app-container">
             {/* Top Header */}
             <Header
                 portfolio={portfolio}
@@ -537,13 +451,8 @@ export const App: React.FC = () => {
                 isLoadingBalance={isLoadingKiteBalance}
                 onRefreshBalance={handleRefreshBalance}
                 lastBalanceRefreshTime={lastBalanceRefreshTime}
-                isMuted={isMuted}
-                onToggleMute={handleToggleMute}
                 onOpenSettings={() => setIsSettingsOpen(true)}
                 onToggleMode={handleToggleMode}
-                isListening={isListening}
-                officeMode={officeMode}
-                onToggleOfficeMode={handleToggleOfficeMode}
                 notificationPermission={notificationPermission}
                 onRequestNotificationPermission={handleRequestNotificationPermission}
                 kiteConnected={kiteConnected}
@@ -557,25 +466,25 @@ export const App: React.FC = () => {
                         background: "rgba(255, 179, 0, 0.12)",
                         border: "1px solid rgba(255, 179, 0, 0.4)",
                         borderRadius: "14px",
-                        padding: "16px 20px",
+                        padding: "14px 18px",
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
-                        marginBottom: "20px",
+                        marginBottom: "16px",
                         flexWrap: "wrap",
-                        gap: "14px"
+                        gap: "12px"
                     }}
                 >
-                    <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-                        <div style={{ background: "rgba(255, 179, 0, 0.2)", padding: "10px", borderRadius: "10px", display: "flex" }}>
-                            <ShieldAlert size={24} color="#ffb300" />
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <div style={{ background: "rgba(255, 179, 0, 0.2)", padding: "8px", borderRadius: "8px", display: "flex" }}>
+                            <ShieldAlert size={22} color="#ffb300" />
                         </div>
                         <div>
-                            <div style={{ fontWeight: 800, color: "#ffb300", fontSize: "15px", letterSpacing: "0.2px" }}>
+                            <div style={{ fontWeight: 800, color: "#ffb300", fontSize: "14px", letterSpacing: "0.2px" }}>
                                 Zerodha Kite Connect Setup Required (Real Data Mode)
                             </div>
-                            <div style={{ color: "#cbd5e1", fontSize: "13px", marginTop: "3px" }}>
-                                Simulated dummy data is disabled. Please add your Kite API credentials and authenticate your daily Kite session in Settings to stream authentic NSE/NFO market quotes and candles.
+                            <div style={{ color: "#cbd5e1", fontSize: "12px", marginTop: "2px" }}>
+                                Authenticate today's Kite session in Settings to stream authentic NSE/NFO market quotes and live charts.
                             </div>
                         </div>
                     </div>
@@ -583,8 +492,8 @@ export const App: React.FC = () => {
                         onClick={() => setIsSettingsOpen(true)}
                         className="btn btn-primary"
                         style={{
-                            padding: "9px 18px",
-                            fontSize: "13px",
+                            padding: "8px 16px",
+                            fontSize: "12.5px",
                             fontWeight: 700,
                             background: "#ffb300",
                             color: "#0c111d",
@@ -596,77 +505,87 @@ export const App: React.FC = () => {
                 </div>
             )}
 
-            {/* Voice Radar & Office Silent Hotkeys Bar */}
-            <VoiceRadar
-                isListening={isListening}
-                transcript={transcript}
-                isSpeaking={isSpeaking}
-                onSimulateCommand={(cmdText) => {
-                    setTranscript(cmdText);
-                    if (cmdText.includes("approve")) handleVoiceCommand("APPROVE", cmdText);
-                    else if (cmdText.includes("reject")) handleVoiceCommand("REJECT", cmdText);
-                    else if (cmdText.includes("scan")) handleVoiceCommand("SCAN", cmdText);
-                }}
-                officeMode={officeMode}
-            />
+            {/* Mobile View Selector Tabs (Phones only) */}
+            <div className="mobile-tabs-container">
+                <button
+                    onClick={() => setMobileTab("chart")}
+                    className={`mobile-tab-btn ${mobileTab === "chart" ? "active" : ""}`}
+                >
+                    <TrendingUp size={15} />
+                    <span>Chart & AI</span>
+                </button>
+                <button
+                    onClick={() => setMobileTab("watchlist")}
+                    className={`mobile-tab-btn ${mobileTab === "watchlist" ? "active" : ""}`}
+                >
+                    <List size={15} />
+                    <span>Watchlist ({quotes.length})</span>
+                </button>
+                <button
+                    onClick={() => setMobileTab("positions")}
+                    className={`mobile-tab-btn ${mobileTab === "positions" ? "active" : ""}`}
+                >
+                    <Layers size={15} />
+                    <span>Positions ({positions.length})</span>
+                </button>
+            </div>
 
             {/* Main Trading Area Layout */}
             <div className="trading-layout">
                 {/* Left Column: Watchlist */}
-                <div>
+                <div style={{ display: typeof window !== "undefined" && window.innerWidth <= 900 && mobileTab !== "watchlist" ? undefined : "block" }} className={mobileTab === "watchlist" ? "mobile-only" : "desktop-only"}>
                     <Watchlist
                         quotes={quotes}
                         selectedSymbol={selectedSymbol}
-                        onSelectSymbol={(sym) => setSelectedSymbol(sym)}
-                        onScanSymbol={(sym) => {
+                        onSelectSymbol={(sym) => {
                             setSelectedSymbol(sym);
-                            handleTriggerScan(sym);
+                            setMobileTab("chart");
                         }}
-                        isScanning={isScanning}
                     />
                 </div>
 
-                {/* Right Column: AI Proposal + Chart + Positions */}
-                <div>
+                {/* Center Column: Interactive TradingView-Style Chart */}
+                <div className="chart-column" style={{ display: typeof window !== "undefined" && window.innerWidth <= 900 && mobileTab !== "chart" ? undefined : "block" }}>
+                    <TradingChart
+                        symbol={selectedSymbol || (quotes[0]?.symbol || "NIFTY 50")}
+                        candles={candles}
+                        livePrice={quotes.find((q) => q.symbol === selectedSymbol)?.ltp}
+                        onTriggerScan={() => handleTriggerScan(selectedSymbol)}
+                        isScanning={isScanning}
+                        isLoadingCandles={isLoadingCandles}
+                        status={chartStatus}
+                        errorDetail={chartErrorDetail}
+                        onOpenSettings={() => setIsSettingsOpen(true)}
+                    />
+                </div>
+
+                {/* Right Column: AI Trade Proposal & Portfolio Summary */}
+                <div className="control-column">
                     <TradeProposalCard
                         proposal={proposal}
                         onApprove={handleApproveProposal}
                         onReject={handleRejectProposal}
-                        onReplayAudio={speakPitch}
-                        onTriggerScan={handleTriggerScan}
+                        onTriggerManualScan={() => handleTriggerScan(selectedSymbol)}
                         isScanning={isScanning}
-                        selectedSymbol={selectedSymbol}
-                        tradingMode={portfolio?.mode || "PAPER"}
-                    />
-
-                    <TradingChart
-                        symbol={selectedSymbol}
-                        candles={candles}
-                        proposal={proposal}
-                        isLoading={isLoadingCandles}
-                        chartStatus={chartStatus}
-                        errorMessage={chartErrorDetail}
-                        kiteConnected={kiteConnected}
-                        onOpenSettings={() => setIsSettingsOpen(true)}
-                        onRetry={() => loadCandles(selectedSymbol, true)}
-                    />
-
-                    <PositionsTable
-                        positions={positions}
-                        orders={orders}
-                        history={history}
-                        onClosePosition={handleClosePosition}
-                        onRefreshHistory={loadHistory}
                     />
                 </div>
             </div>
 
-            {/* Settings Modal */}
+            {/* Bottom Section: Active Positions & Historical Audit Log */}
+            <div style={{ marginTop: "24px", display: typeof window !== "undefined" && window.innerWidth <= 900 && mobileTab !== "positions" ? undefined : "block" }} className={mobileTab === "positions" ? "mobile-only" : ""}>
+                <PositionsTable
+                    positions={positions}
+                    orders={orders}
+                    history={history}
+                    onClosePosition={handleClosePosition}
+                />
+            </div>
+
+            {/* Encrypted Vault & Webhook Settings Modal */}
             <SettingsModal
                 isOpen={isSettingsOpen}
                 onClose={() => setIsSettingsOpen(false)}
                 onSave={handleSaveSettings}
-                currentMode={portfolio?.mode || "PAPER"}
                 onOpenKiteLogin={handleOpenKiteLogin}
                 onTestNotification={handleTestNotification}
             />

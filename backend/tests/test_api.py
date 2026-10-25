@@ -31,7 +31,9 @@ def test_api_quotes(setup_auth_fixture):
     response = client.get("/api/market/quotes", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200
     quotes = response.json()
-    assert len(quotes) >= 8
+    assert len(quotes) >= 1
+    symbols = [q["symbol"] for q in quotes]
+    assert "BANK NIFTY" in symbols
 
 def test_api_candles_unconfigured(setup_auth_fixture):
     token = setup_auth_fixture

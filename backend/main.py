@@ -1,5 +1,5 @@
 """
-Root Backward-Compatibility Shim for KitePulse AI FastAPI Server.
+Root Backward-Compatibility Shim for TradeSentinel FastAPI Server.
 Delegates cleanly to the modular enterprise application package `app.main`.
 """
 

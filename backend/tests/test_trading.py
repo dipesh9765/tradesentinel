@@ -4,7 +4,7 @@ import numpy as np
 from technical_indicators import calculate_ema, calculate_rsi, calculate_vwap, calculate_atr, enrich_candle_indicators
 from config import settings
 from market_data import MarketDataManager
-from gemini_analyzer import GeminiMarketAnalyzer
+from trade_analyzer import TradeAnalyzer
 from kite_executor import KiteTradingExecutor, OrderStatus
 
 def test_indicators():
@@ -29,33 +29,32 @@ def test_market_data_manager_unconfigured_no_dummy_data():
     mdm = MarketDataManager()
     assert mdm.is_configured() is False
     quotes = mdm.get_all_quotes()
-    assert len(quotes) >= 8
+    assert len(quotes) >= 1
     
-    nifty = mdm.get_quote("NIFTY 50")
-    assert nifty["symbol"] == "NIFTY 50"
+    bn = mdm.get_quote("BANK NIFTY")
+    assert bn["symbol"] == "BANK NIFTY"
     # No fake dummy LTP fabricated when unconfigured
-    assert nifty["configured"] is False
-    assert nifty["status"] == "CONFIG_REQUIRED"
+    assert bn["configured"] is False
+    assert bn["status"] == "CONFIG_REQUIRED"
     
     # Never generates fake simulated candles
-    candles = mdm.get_candles("NIFTY 50", limit=20)
+    candles = mdm.get_candles("BANK NIFTY", limit=20)
     assert len(candles) == 0
 
-def test_gemini_analyzer_fallback():
-    analyzer = GeminiMarketAnalyzer()
-    analyzer.client = None  # test fallback path
-    
+def test_analyzer_returns_no_trade_without_data():
+    """With no market data the analyzer must stand aside, never invent a trade."""
+    analyzer = TradeAnalyzer()
+    analyzer.client = None
+
     mdm = MarketDataManager()
     quote = mdm.get_quote("NIFTY 50")
     df = mdm.candles_data.get("NIFTY 50")
-    
+
     signal = analyzer.analyze_market_setup("NIFTY 50", quote, df)
-    assert signal["symbol"] == "NIFTY 50"
-    assert signal["signal_type"] in ["BUY_CALL", "BUY_PUT"]
-    assert signal["lot_size"] == 1  # strict lot size constraint
-    assert signal["stop_loss"] < signal["entry_price"] if "BUY" in signal["signal_type"] else signal["stop_loss"] > signal["entry_price"]
-    assert "verbal_pitch" in signal
-    assert len(signal["verbal_pitch"]) > 20
+    assert signal["actionable"] is False
+    assert signal["decision"] == "NO_TRADE"
+    assert "signal_type" not in signal
+
 
 def test_safety_guardrail_and_execution():
     executor = KiteTradingExecutor()
@@ -68,8 +67,8 @@ def test_safety_guardrail_and_execution():
         "direction": "BULLISH",
         "entry_price": 120.0,
         "stop_loss": 100.0,
-        "target_1": 150.0,
-        "target_2": 170.0,
+        "target_1": 160.0,
+        "target_2": 180.0,
         "risk_reward": "1:2.0",
         "confidence": 85,
         "verbal_pitch": "Buy call alert",

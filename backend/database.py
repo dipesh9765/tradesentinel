@@ -1,5 +1,5 @@
 """
-Database & Encrypted Secure Vault Management Layer - KitePulse AI
+Database & Encrypted Secure Vault Management Layer - TradeSentinel
 
 This module implements the persistence layer for trade suggestions, positions, order audit logs,
 and sensitive brokerage API credentials. It provides an ACID-compliant SQLite implementation
@@ -128,6 +128,13 @@ def init_db() -> None:
         if "status_message" not in columns:
             cursor.execute("ALTER TABLE orders ADD COLUMN status_message TEXT")
 
+        # Schema migration: broker linkage columns for live positions (protective stop / exit tracking)
+        cursor.execute("PRAGMA table_info(positions)")
+        pos_columns = [row[1] for row in cursor.fetchall()]
+        for col in ("sl_order_id", "exit_order_id", "broker_symbol", "exchange"):
+            if col not in pos_columns:
+                cursor.execute(f"ALTER TABLE positions ADD COLUMN {col} TEXT")
+
         # Auth Config Table (Stores master password hash & salt)
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS auth_config (
@@ -211,15 +218,17 @@ class TradingRepository:
                 position_id, proposal_id, order_id, symbol, instrument,
                 signal_type, quantity, buy_price, current_ltp, stop_loss,
                 target_1, target_2, unrealized_pnl, realized_pnl, pnl_pct,
-                exit_price, status, close_reason, mode, opened_at, closed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                exit_price, status, close_reason, mode, opened_at, closed_at,
+                sl_order_id, exit_order_id, broker_symbol, exchange
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 pos["position_id"], pos.get("proposal_id"), pos.get("order_id"), pos["symbol"],
                 pos["instrument"], pos["signal_type"], pos["quantity"], pos["buy_price"],
                 pos["current_ltp"], pos["stop_loss"], pos["target_1"], pos["target_2"],
                 pos.get("unrealized_pnl", 0.0), pos.get("realized_pnl", 0.0), pos.get("pnl_pct", 0.0),
                 pos.get("exit_price"), pos.get("status", "OPEN"), pos.get("close_reason"),
-                pos.get("mode", "PAPER"), pos.get("opened_at"), pos.get("closed_at")
+                pos.get("mode", "PAPER"), pos.get("opened_at"), pos.get("closed_at"),
+                pos.get("sl_order_id"), pos.get("exit_order_id"), pos.get("broker_symbol"), pos.get("exchange")
             ))
             conn.commit()
         finally:
@@ -234,12 +243,14 @@ class TradingRepository:
             cursor.execute("""
             UPDATE positions SET
                 current_ltp = ?, unrealized_pnl = ?, realized_pnl = ?,
-                pnl_pct = ?, exit_price = ?, status = ?, close_reason = ?, closed_at = ?
+                pnl_pct = ?, exit_price = ?, status = ?, close_reason = ?, closed_at = ?,
+                stop_loss = ?, sl_order_id = ?, exit_order_id = ?
             WHERE position_id = ?
             """, (
                 pos["current_ltp"], pos.get("unrealized_pnl", 0.0), pos.get("realized_pnl", 0.0),
                 pos.get("pnl_pct", 0.0), pos.get("exit_price"), pos["status"],
-                pos.get("close_reason"), pos.get("closed_at"), pos["position_id"]
+                pos.get("close_reason"), pos.get("closed_at"),
+                pos["stop_loss"], pos.get("sl_order_id"), pos.get("exit_order_id"), pos["position_id"]
             ))
             conn.commit()
         finally:
@@ -302,6 +313,22 @@ class TradingRepository:
             cursor.execute("SELECT * FROM positions WHERE status = 'OPEN'")
             rows = cursor.fetchall()
             return {r["position_id"]: dict(r) for r in rows}
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_closed_positions_on(date_prefix: str, mode: str) -> List[Dict[str, Any]]:
+        """Positions closed on a given day (YYYY-MM-DD) in a trading mode, newest first."""
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT position_id, realized_pnl, closed_at FROM positions "
+                "WHERE status = 'CLOSED' AND mode = ? AND closed_at LIKE ? "
+                "ORDER BY closed_at DESC, id DESC",
+                (mode, date_prefix + "%")
+            )
+            return [dict(r) for r in cursor.fetchall()]
         finally:
             conn.close()
 
@@ -417,6 +444,9 @@ def get_open_positions_from_db() -> Dict[str, Dict[str, Any]]:
 
 def save_order(order: Dict[str, Any], proposal_id: Optional[str] = None) -> None:
     TradingRepository.save_order(order, proposal_id)
+
+def get_closed_positions_on(date_prefix: str, mode: str) -> List[Dict[str, Any]]:
+    return TradingRepository.get_closed_positions_on(date_prefix, mode)
 
 def get_history_from_db(limit: int = 50) -> List[Dict[str, Any]]:
     return TradingRepository.get_history_from_db(limit)

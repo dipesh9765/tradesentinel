@@ -5,7 +5,6 @@ Unit test suite for centralized prompts and dynamic '%VALUE%' placeholder substi
 from prompts import (
     INTRADAY_MARKET_SETUP_PROMPT,
     MARKET_SENTIMENT_ANALYSIS_PROMPT,
-    VERBAL_PITCH_PROMPT,
     render_prompt,
     GenPrompts
 )
@@ -19,11 +18,29 @@ def test_intraday_market_setup_prompt_placeholders():
         close=24850.50,
         ema_9=24820.10,
         ema_21=24790.00,
+        ema_50=24750.00,
         vwap=24800.00,
+        vwap_upper=24850.00,
+        vwap_lower=24750.00,
+        supertrend=24780.00,
+        supertrend_dir="BULLISH",
         rsi=58.5,
+        rsi_regime="Bullish Momentum",
         atr=45.2,
+        adx=26.4,
+        plus_di=28.0,
+        minus_di=16.0,
+        pivot=24800.00,
+        tc=24830.00,
+        bc=24770.00,
+        cpr_regime="NARROW",
+        r1=24900.00,
+        s1=24700.00,
         call_option="NIFTY 24850 CE",
-        put_option="NIFTY 24850 PE"
+        put_option="NIFTY 24850 PE",
+        confluence_score=85,
+        quant_direction="BULLISH",
+        factor_findings="Supertrend and EMA alignment"
     )
 
     # Check that placeholders were replaced
@@ -45,25 +62,17 @@ def test_intraday_market_setup_prompt_placeholders():
     assert "NIFTY 24850 PE" in rendered
 
 
-def test_verbal_pitch_prompt_placeholders():
-    """Verifies verbal pitch placeholder replacement."""
+def test_market_sentiment_analysis_prompt():
+    """Verifies macro sentiment prompt placeholder replacement."""
     rendered = GenPrompts.render(
-        GenPrompts.VERBAL_PITCH,
-        instrument="BANK NIFTY 52000 CE",
-        action="BUY",
-        entry_price=350.0,
-        stop_loss=300.0,
-        target=440.0,
-        confidence=88
+        GenPrompts.MARKET_SENTIMENT_ANALYSIS,
+        market_trend="BULLISH",
+        advance_decline="32/18",
+        india_vix=14.2,
+        sector_movers="NIFTY AUTO, NIFTY IT"
     )
 
-    assert "%INSTRUMENT%" not in rendered
-    assert "%ACTION%" not in rendered
-    assert "%ENTRY_PRICE%" not in rendered
-    assert "%STOP_LOSS%" not in rendered
-    assert "%TARGET%" not in rendered
-    assert "%CONFIDENCE%" not in rendered
-
-    assert "BANK NIFTY 52000 CE" in rendered
-    assert "₹350" in rendered
-    assert "88%" in rendered
+    assert "%MARKET_TREND%" not in rendered
+    assert "%INDIA_VIX%" not in rendered
+    assert "BULLISH" in rendered
+    assert "14.2" in rendered

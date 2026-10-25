@@ -7,10 +7,11 @@ interface TradeProposalCardProps {
   proposal: TradeProposal | null;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
-  onReplayAudio: (text: string) => void;
-  onTriggerScan: (symbol: string) => void;
-  isScanning: boolean;
-  selectedSymbol: string;
+  onReplayAudio?: (text: string) => void;
+  onTriggerScan?: (symbol: string) => void;
+  onTriggerManualScan?: (symbol: string) => void;
+  isScanning?: boolean;
+  selectedSymbol?: string;
   tradingMode?: TradingModeType;
 }
 
@@ -20,8 +21,9 @@ export const TradeProposalCard: React.FC<TradeProposalCardProps> = ({
   onReject,
   onReplayAudio,
   onTriggerScan,
-  isScanning,
-  selectedSymbol,
+  onTriggerManualScan,
+  isScanning = false,
+  selectedSymbol = "",
   tradingMode = GenConsts.MODES.PAPER
 }) => {
   if (!proposal || proposal.status !== GenConsts.STATUSES.PENDING_APPROVAL) {
@@ -41,19 +43,19 @@ export const TradeProposalCard: React.FC<TradeProposalCardProps> = ({
           <Sparkles size={28} color="var(--color-cyan)" />
         </div>
         <h3 style={{ fontSize: "18px", fontWeight: 700, marginBottom: "8px" }}>
-          Gemini High-Spec Market Scanner
+          Rules-Based Market Scanner
         </h3>
         <p style={{ color: "var(--text-muted)", fontSize: "14px", maxWidth: "480px", margin: "0 auto 20px auto" }}>
-          Let Gemini analyze live EMA crosses, VWAP, RSI, and ATR levels on <strong>{selectedSymbol}</strong> to find the highest-conviction Call/Put intraday setup.
+          Run the multi-factor rules engine (EMA ribbon, Supertrend, VWAP, ADX, RSI, CPR) on <strong>{selectedSymbol}</strong> to look for a high-conviction intraday setup. An AI model only explains the result.
         </p>
         <button
-          onClick={() => onTriggerScan(selectedSymbol)}
+          onClick={() => (onTriggerScan || onTriggerManualScan)?.(selectedSymbol)}
           disabled={isScanning}
           className="btn btn-primary"
           style={{ padding: "12px 28px", fontSize: "15px" }}
         >
           <Sparkles size={18} />
-          <span>{isScanning ? `Analyzing ${selectedSymbol}...` : `Scan ${selectedSymbol} with Gemini`}</span>
+          <span>{isScanning ? `Analyzing ${selectedSymbol}...` : `Scan ${selectedSymbol}`}</span>
         </button>
       </div>
     );
@@ -187,19 +189,21 @@ export const TradeProposalCard: React.FC<TradeProposalCardProps> = ({
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
           <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--color-cyan)", display: "flex", alignItems: "center", gap: "6px" }}>
-            <Volume2 size={14} /> AI Verbal Recommendation
+            <Volume2 size={14} /> AI Recommendation Rationale
           </span>
-          <button
-            onClick={() => onReplayAudio(proposal.verbal_pitch)}
-            className="btn btn-secondary"
-            style={{ padding: "4px 8px", fontSize: "11px" }}
-            title="Hear Gemini repeat this trade setup"
-          >
-            Replay Voice
-          </button>
+          {onReplayAudio && proposal.verbal_pitch && (
+            <button
+              onClick={() => onReplayAudio(proposal.verbal_pitch || "")}
+              className="btn btn-secondary"
+              style={{ padding: "4px 8px", fontSize: "11px" }}
+              title="Hear this trade setup again"
+            >
+              Replay Voice
+            </button>
+          )}
         </div>
         <p style={{ fontSize: "13px", color: "var(--text-main)", fontStyle: "italic", marginBottom: "6px" }}>
-          "{proposal.verbal_pitch}"
+          "{proposal.reasoning || proposal.verbal_pitch || "Quantitative A+ Setup Triggered."}"
         </p>
         <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>
           <strong>Technical Rationale:</strong> {proposal.technical_rationale}
