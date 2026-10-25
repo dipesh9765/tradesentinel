@@ -82,6 +82,10 @@ class Settings(BaseSettings):
     # As requested: "For intial phase to test, keep the lot size to 1"
     DEFAULT_LOT_SIZE: int = GenConsts.DEFAULT_LOT_SIZE
     MAX_LOT_SIZE: int = GenConsts.MAX_LOT_SIZE  # Safety guardrail for initial phase
+    MAX_DAILY_LOSS: float = float(os.getenv("MAX_DAILY_LOSS", "2000"))  # Circuit breaker, in INR
+    MAX_TRADES_PER_DAY: int = int(os.getenv("MAX_TRADES_PER_DAY", "5"))
+    MAX_CONSECUTIVE_LOSSES: int = int(os.getenv("MAX_CONSECUTIVE_LOSSES", "3"))
+    LOSS_STREAK_PAUSE_MINUTES: int = int(os.getenv("LOSS_STREAK_PAUSE_MINUTES", "60"))
     TRADING_MODE: str = os.getenv("TRADING_MODE", GenConsts.MODE_PAPER)  # "PAPER" or "LIVE"
     DEFAULT_PRODUCT: str = GenConsts.DEFAULT_PRODUCT  # Intraday
     INITIAL_PAPER_CAPITAL: float = GenConsts.INITIAL_PAPER_CAPITAL  # ₹1,00,000 for paper testing

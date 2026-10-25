@@ -5,11 +5,17 @@ import type { Candle, TradeProposal } from "../types";
 interface TradingChartProps {
     symbol: string;
     candles: Candle[];
+    livePrice?: number;
     proposal?: TradeProposal | null;
     isLoading?: boolean;
+    isLoadingCandles?: boolean;
     chartStatus?: string | null;
+    status?: string | null;
     errorMessage?: string | null;
+    errorDetail?: string | null;
     kiteConnected?: boolean;
+    isScanning?: boolean;
+    onTriggerScan?: () => Promise<void> | void;
     onOpenSettings?: () => void;
     onRetry?: () => void;
 }
@@ -17,138 +23,159 @@ interface TradingChartProps {
 export const TradingChart: React.FC<TradingChartProps> = ({
     symbol,
     candles,
+    livePrice: _livePrice,
     proposal,
     isLoading = false,
+    isLoadingCandles = false,
     chartStatus = null,
+    status = null,
     errorMessage = null,
+    errorDetail = null,
     kiteConnected = false,
+    isScanning: _isScanning,
+    onTriggerScan: _onTriggerScan,
     onOpenSettings,
     onRetry
 }) => {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const effectiveLoading = isLoading || isLoadingCandles;
+    const effectiveStatus = chartStatus || status;
+    const effectiveError = errorMessage || errorDetail;
 
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas || candles.length === 0) return;
 
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
+        const draw = () => {
+            const ctx = canvas.getContext("2d");
+            if (!ctx) return;
 
-        // Handle high DPI
-        const dpr = window.devicePixelRatio || 1;
-        const rect = canvas.getBoundingClientRect();
-        canvas.width = rect.width * dpr;
-        canvas.height = rect.height * dpr;
-        ctx.scale(dpr, dpr);
+            // Handle high DPI & Responsive width
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            if (rect.width <= 0 || rect.height <= 0) return;
 
-        const width = rect.width;
-        const height = rect.height;
-        const padding = { top: 30, right: 65, bottom: 30, left: 10 };
-        const chartWidth = width - padding.left - padding.right;
-        const chartHeight = height - padding.top - padding.bottom;
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
 
-        // Clear
-        ctx.clearRect(0, 0, width, height);
+            const width = rect.width;
+            const height = rect.height;
+            const padding = { top: 30, right: 65, bottom: 30, left: 10 };
+            const chartWidth = width - padding.left - padding.right;
+            const chartHeight = height - padding.top - padding.bottom;
 
-        // Calculate Price Extents
-        let minPrice = Math.min(...candles.map((c) => c.low));
-        let maxPrice = Math.max(...candles.map((c) => c.high));
+            // Clear
+            ctx.clearRect(0, 0, width, height);
 
-        // Include proposal levels if active
-        if (proposal && proposal.symbol === symbol) {
-            minPrice = Math.min(minPrice, proposal.stop_loss, proposal.entry_price);
-            maxPrice = Math.max(maxPrice, proposal.target_1, proposal.entry_price);
-        }
+            // Calculate Price Extents
+            let minPrice = Math.min(...candles.map((c) => c.low));
+            let maxPrice = Math.max(...candles.map((c) => c.high));
 
-        const priceBuffer = (maxPrice - minPrice) * 0.08 || 1;
-        minPrice -= priceBuffer;
-        maxPrice += priceBuffer;
-        const priceRange = maxPrice - minPrice;
-
-        const getY = (price: number) => padding.top + chartHeight - ((price - minPrice) / priceRange) * chartHeight;
-        const candleWidth = Math.max(2, chartWidth / candles.length - 3);
-
-        // Grid lines (Horizontal)
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
-        ctx.lineWidth = 1;
-        const numGridLines = 5;
-        for (let i = 0; i <= numGridLines; i++) {
-            const y = padding.top + (chartHeight / numGridLines) * i;
-            const price = maxPrice - (priceRange / numGridLines) * i;
-
-            ctx.beginPath();
-            ctx.moveTo(padding.left, y);
-            ctx.lineTo(width - padding.right, y);
-            ctx.stroke();
-
-            // Price label on right axis
-            ctx.fillStyle = "#64748b";
-            ctx.font = "10px 'JetBrains Mono', monospace";
-            ctx.textAlign = "left";
-            ctx.fillText(`₹${price.toFixed(1)}`, width - padding.right + 8, y + 3);
-        }
-
-        // Draw Volume Bars at bottom
-        const maxVolume = Math.max(...candles.map((c) => c.volume), 1);
-        const volumeHeightMax = chartHeight * 0.2;
-
-        candles.forEach((candle, idx) => {
-            const x = padding.left + idx * (chartWidth / candles.length) + (chartWidth / candles.length - candleWidth) / 2;
-            const isBullish = candle.close >= candle.open;
-            const vHeight = (candle.volume / maxVolume) * volumeHeightMax;
-
-            ctx.fillStyle = isBullish ? "rgba(0, 230, 153, 0.15)" : "rgba(255, 51, 102, 0.15)";
-            ctx.fillRect(x, padding.top + chartHeight - vHeight, candleWidth, vHeight);
-        });
-
-        // Draw Candlesticks
-        candles.forEach((candle, idx) => {
-            const x = padding.left + idx * (chartWidth / candles.length) + (chartWidth / candles.length - candleWidth) / 2;
-            const centerX = x + candleWidth / 2;
-            const isBullish = candle.close >= candle.open;
-
-            const openY = getY(candle.open);
-            const closeY = getY(candle.close);
-            const highY = getY(candle.high);
-            const lowY = getY(candle.low);
-
-            const color = isBullish ? "#00e699" : "#ff3366";
-            ctx.strokeStyle = color;
-            ctx.fillStyle = color;
-
-            // Wick
-            ctx.lineWidth = 1.2;
-            ctx.beginPath();
-            ctx.moveTo(centerX, highY);
-            ctx.lineTo(centerX, lowY);
-            ctx.stroke();
-
-            // Body
-            const bodyY = Math.min(openY, closeY);
-            const bodyH = Math.max(Math.abs(closeY - openY), 1.5);
-            ctx.fillRect(x, bodyY, candleWidth, bodyH);
-        });
-
-        // Draw Indicator Lines: EMA 9 (Cyan), EMA 21 (Amber), VWAP (Purple)
-        const drawLine = (key: keyof Candle, strokeColor: string, isDashed = false) => {
-            ctx.strokeStyle = strokeColor;
-            ctx.lineWidth = 1.5;
-            if (isDashed) {
-                ctx.setLineDash([4, 4]);
-            } else {
-                ctx.setLineDash([]);
+            // Include proposal levels if active
+            if (proposal) {
+                minPrice = Math.min(minPrice, proposal.stop_loss, proposal.entry_price);
+                maxPrice = Math.max(maxPrice, proposal.target ?? (proposal as any).target_1 ?? proposal.entry_price, proposal.entry_price);
             }
 
-            ctx.beginPath();
-            let started = false;
+            const priceRange = maxPrice - minPrice || 1;
+            const candleWidth = Math.max(2, (chartWidth / candles.length) - 3);
+
+            const getY = (price: number) => {
+                return padding.top + chartHeight - ((price - minPrice) / priceRange) * chartHeight;
+            };
+
+            // Draw Grid Lines (4 horizontal levels)
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
+            ctx.lineWidth = 1;
+            ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+            ctx.font = "10px Inter, sans-serif";
+            ctx.textAlign = "left";
+
+            for (let i = 0; i <= 4; i++) {
+                const priceLevel = minPrice + (priceRange * i) / 4;
+                const y = getY(priceLevel);
+                ctx.beginPath();
+                ctx.moveTo(padding.left, y);
+                ctx.lineTo(width - padding.right, y);
+                ctx.stroke();
+
+                ctx.fillText(`₹${priceLevel.toFixed(1)}`, width - padding.right + 8, y + 3);
+            }
+
+            // Draw Candles
             candles.forEach((c, idx) => {
-                const val = c[key];
-                if (typeof val === "number" && !isNaN(val)) {
-                    const x = padding.left + idx * (chartWidth / candles.length) + chartWidth / candles.length / 2;
+                const x = padding.left + idx * (candleWidth + 3);
+                const isBull = c.close >= c.open;
+                ctx.fillStyle = isBull ? "#00f0ff" : "#ff0055";
+                ctx.strokeStyle = isBull ? "#00f0ff" : "#ff0055";
+
+                // Wick
+                ctx.beginPath();
+                ctx.moveTo(x + candleWidth / 2, getY(c.high));
+                ctx.lineTo(x + candleWidth / 2, getY(c.low));
+                ctx.stroke();
+
+                // Body
+                const yOpen = getY(c.open);
+                const yClose = getY(c.close);
+                const bodyHeight = Math.max(2, Math.abs(yOpen - yClose));
+                ctx.fillRect(x, Math.min(yOpen, yClose), candleWidth, bodyHeight);
+            });
+
+            // Draw EMA 9 (Cyan line)
+            ctx.strokeStyle = "#00f0ff";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            let startedEma9 = false;
+            candles.forEach((c, idx) => {
+                const val = c.ema_9 ?? c.ema9;
+                if (val != null) {
+                    const x = padding.left + idx * (candleWidth + 3) + candleWidth / 2;
                     const y = getY(val);
-                    if (!started) {
+                    if (!startedEma9) {
                         ctx.moveTo(x, y);
-                        started = true;
+                        startedEma9 = true;
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+            });
+            ctx.stroke();
+
+            // Draw EMA 21 (Yellow line)
+            ctx.strokeStyle = "#ffb703";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            let startedEma21 = false;
+            candles.forEach((c, idx) => {
+                const val = c.ema_21 ?? c.ema21;
+                if (val != null) {
+                    const x = padding.left + idx * (candleWidth + 3) + candleWidth / 2;
+                    const y = getY(val);
+                    if (!startedEma21) {
+                        ctx.moveTo(x, y);
+                        startedEma21 = true;
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+            });
+            ctx.stroke();
+
+            // Draw VWAP (Purple dashed line)
+            ctx.strokeStyle = "#c084fc";
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            let startedVwap = false;
+            candles.forEach((c, idx) => {
+                if (c.vwap != null) {
+                    const x = padding.left + idx * (candleWidth + 3) + candleWidth / 2;
+                    const y = getY(c.vwap);
+                    if (!startedVwap) {
+                        ctx.moveTo(x, y);
+                        startedVwap = true;
                     } else {
                         ctx.lineTo(x, y);
                     }
@@ -156,52 +183,73 @@ export const TradingChart: React.FC<TradingChartProps> = ({
             });
             ctx.stroke();
             ctx.setLineDash([]);
+
+            // Draw Candlesticks
+            candles.forEach((c, idx) => {
+                const x = padding.left + idx * (candleWidth + 3);
+                const isGreen = c.close >= c.open;
+                const candleColor = isGreen ? "#00e699" : "#ff3366";
+
+                // Wick
+                ctx.strokeStyle = candleColor;
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(x + candleWidth / 2, getY(c.high));
+                ctx.lineTo(x + candleWidth / 2, getY(c.low));
+                ctx.stroke();
+
+                // Body
+                const bodyTop = getY(Math.max(c.open, c.close));
+                const bodyBottom = getY(Math.min(c.open, c.close));
+                const bodyHeight = Math.max(2, bodyBottom - bodyTop);
+
+                ctx.fillStyle = candleColor;
+                ctx.fillRect(x, bodyTop, candleWidth, bodyHeight);
+            });
+
+            // Draw Proposal Trade Overlays (SL, Target, Entry)
+            if (proposal && proposal.symbol === symbol) {
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([6, 3]);
+
+                // Stop Loss (Red)
+                const slY = getY(proposal.stop_loss);
+                ctx.strokeStyle = "#ff3366";
+                ctx.beginPath();
+                ctx.moveTo(padding.left, slY);
+                ctx.lineTo(width - padding.right, slY);
+                ctx.stroke();
+                ctx.fillStyle = "#ff3366";
+                ctx.font = "10px 'JetBrains Mono', monospace";
+                ctx.fillText(`SL: ₹${proposal.stop_loss}`, width - padding.right + 4, slY - 3);
+
+                // Target 1 (Green)
+                const tY = getY(proposal.target_1);
+                ctx.strokeStyle = "#00e699";
+                ctx.beginPath();
+                ctx.moveTo(padding.left, tY);
+                ctx.lineTo(width - padding.right, tY);
+                ctx.stroke();
+                ctx.fillStyle = "#00e699";
+                ctx.fillText(`TP: ₹${proposal.target_1}`, width - padding.right + 4, tY - 3);
+
+                // Entry Price (Gold)
+                const entY = getY(proposal.entry_price);
+                ctx.strokeStyle = "#ffb703";
+                ctx.beginPath();
+                ctx.moveTo(padding.left, entY);
+                ctx.lineTo(width - padding.right, entY);
+                ctx.stroke();
+                ctx.fillStyle = "#ffb703";
+                ctx.fillText(`ENTRY: ₹${proposal.entry_price}`, width - padding.right + 4, entY - 3);
+
+                ctx.setLineDash([]);
+            }
         };
 
-        drawLine("ema_9", "#00f0ff");
-        drawLine("ema_21", "#ffb703");
-        drawLine("vwap", "#c084fc", true);
-
-        // Draw Proposal Price Overlay Lines (if symbol matches)
-        if (proposal && proposal.symbol === symbol) {
-            // Entry Line
-            ctx.setLineDash([6, 3]);
-            ctx.lineWidth = 1.5;
-
-            // Stop Loss (Red)
-            const slY = getY(proposal.stop_loss);
-            ctx.strokeStyle = "#ff3366";
-            ctx.beginPath();
-            ctx.moveTo(padding.left, slY);
-            ctx.lineTo(width - padding.right, slY);
-            ctx.stroke();
-            ctx.fillStyle = "#ff3366";
-            ctx.font = "10px 'JetBrains Mono', monospace";
-            ctx.fillText(`SL: ₹${proposal.stop_loss}`, width - padding.right + 4, slY - 3);
-
-            // Target 1 (Green)
-            const tY = getY(proposal.target_1);
-            ctx.strokeStyle = "#00e699";
-            ctx.beginPath();
-            ctx.moveTo(padding.left, tY);
-            ctx.lineTo(width - padding.right, tY);
-            ctx.stroke();
-            ctx.fillStyle = "#00e699";
-            ctx.fillText(`TP: ₹${proposal.target_1}`, width - padding.right + 4, tY - 3);
-
-            // Entry Price (Gold)
-            const entY = getY(proposal.entry_price);
-            ctx.strokeStyle = "#ffb703";
-            ctx.beginPath();
-            ctx.moveTo(padding.left, entY);
-            ctx.lineTo(width - padding.right, entY);
-            ctx.stroke();
-            ctx.fillStyle = "#ffb703";
-            ctx.fillText(`ENTRY: ₹${proposal.entry_price}`, width - padding.right + 4, entY - 3);
-
-            ctx.setLineDash([]);
-        }
-
+        draw();
+        window.addEventListener("resize", draw);
+        return () => window.removeEventListener("resize", draw);
     }, [candles, proposal, symbol]);
 
     return (
@@ -233,7 +281,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({
                     ref={canvasRef}
                     style={{ width: "100%", height: "100%", display: "block" }}
                 />
-                {isLoading && (
+                {effectiveLoading && (
                     <div
                         style={{
                             position: "absolute",
@@ -276,7 +324,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({
                 )}
 
                 {/* Diagnostic Status Screen when candles are not loaded */}
-                {!isLoading && candles.length === 0 && (
+                {!effectiveLoading && candles.length === 0 && (
                     <div
                         style={{
                             position: "absolute",
@@ -297,7 +345,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({
                         }}
                     >
                         {/* Condition A: Kite session is not initialized or not connected */}
-                        {(!kiteConnected || chartStatus === "KITE_SESSION_NOT_INITIALIZED") && (
+                        {(!kiteConnected || effectiveStatus === "KITE_SESSION_NOT_INITIALIZED") && (
                             <div style={{ maxWidth: "480px", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
                                 <div style={{ background: "rgba(255, 179, 0, 0.15)", padding: "14px", borderRadius: "16px", border: "1px solid rgba(255, 179, 0, 0.3)" }}>
                                     <ShieldAlert size={36} color="#ffb300" />
@@ -310,7 +358,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({
                                         Real-time candlestick charts cannot load without an authenticated Zerodha Kite session.
                                     </p>
                                     <p style={{ fontSize: "11.5px", color: "#94a3b8", marginTop: "6px", fontFamily: "var(--font-mono)" }}>
-                                        {errorMessage || "Please configure your Kite API credentials and authenticate today's daily session in Settings."}
+                                        Please authenticate your daily Kite token in settings.
                                     </p>
                                 </div>
                                 {onOpenSettings && (
@@ -318,7 +366,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({
                                         onClick={onOpenSettings}
                                         className="btn btn-primary"
                                         style={{
-                                            marginTop: "6px",
+                                            marginTop: "4px",
                                             display: "flex",
                                             alignItems: "center",
                                             gap: "8px",
@@ -337,7 +385,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({
                         )}
 
                         {/* Condition B: Kite is connected, but Zerodha Kite returned an error from their side */}
-                        {kiteConnected && chartStatus === "KITE_BROKER_ERROR" && (
+                        {kiteConnected && effectiveStatus === "KITE_BROKER_ERROR" && (
                             <div style={{ maxWidth: "520px", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
                                 <div style={{ background: "rgba(255, 51, 102, 0.15)", padding: "14px", borderRadius: "16px", border: "1px solid rgba(255, 51, 102, 0.35)" }}>
                                     <AlertTriangle size={36} color="#ff3366" />
@@ -362,7 +410,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({
                                             wordBreak: "break-word"
                                         }}
                                     >
-                                        {errorMessage || "Historical data API call failed or timed out from broker."}
+                                        {effectiveError || "Historical data API call failed or timed out from broker."}
                                     </div>
                                     <p style={{ fontSize: "11px", color: "#94a3b8", marginTop: "8px" }}>
                                         💡 Note: Zerodha requires an active <strong>Kite Connect Historical Data</strong> add-on subscription (₹2,000/mo) on your developer app to stream candlestick charts.

@@ -1,16 +1,18 @@
 import React from "react";
 import { ArrowUpRight, ArrowDownRight, CheckCircle2, XCircle, Volume2, Sparkles, Clock, AlertTriangle, ShieldCheck } from "lucide-react";
 import type { TradeProposal } from "../types";
+import { GenConsts, type TradingModeType } from "../constants";
 
 interface TradeProposalCardProps {
   proposal: TradeProposal | null;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
-  onReplayAudio: (text: string) => void;
-  onTriggerScan: (symbol: string) => void;
-  isScanning: boolean;
-  selectedSymbol: string;
-  tradingMode?: "PAPER" | "LIVE";
+  onReplayAudio?: (text: string) => void;
+  onTriggerScan?: (symbol: string) => void;
+  onTriggerManualScan?: (symbol: string) => void;
+  isScanning?: boolean;
+  selectedSymbol?: string;
+  tradingMode?: TradingModeType;
 }
 
 export const TradeProposalCard: React.FC<TradeProposalCardProps> = ({
@@ -19,9 +21,10 @@ export const TradeProposalCard: React.FC<TradeProposalCardProps> = ({
   onReject,
   onReplayAudio,
   onTriggerScan,
-  isScanning,
-  selectedSymbol,
-  tradingMode = "PAPER"
+  onTriggerManualScan,
+  isScanning = false,
+  selectedSymbol = "",
+  tradingMode = GenConsts.MODES.PAPER
 }) => {
   if (!proposal || proposal.status !== "PENDING_APPROVAL") {
     return (
@@ -46,7 +49,7 @@ export const TradeProposalCard: React.FC<TradeProposalCardProps> = ({
           Let Gemini analyze live EMA crosses, VWAP, RSI, and ATR levels on <strong>{selectedSymbol}</strong> to find the highest-conviction Call/Put intraday setup.
         </p>
         <button
-          onClick={() => onTriggerScan(selectedSymbol)}
+          onClick={() => (onTriggerScan || onTriggerManualScan)?.(selectedSymbol)}
           disabled={isScanning}
           className="btn btn-primary"
           style={{ padding: "12px 28px", fontSize: "15px" }}
@@ -186,19 +189,21 @@ export const TradeProposalCard: React.FC<TradeProposalCardProps> = ({
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
           <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--color-cyan)", display: "flex", alignItems: "center", gap: "6px" }}>
-            <Volume2 size={14} /> AI Verbal Recommendation
+            <Volume2 size={14} /> AI Recommendation Rationale
           </span>
-          <button
-            onClick={() => onReplayAudio(proposal.verbal_pitch)}
-            className="btn btn-secondary"
-            style={{ padding: "4px 8px", fontSize: "11px" }}
-            title="Hear Gemini repeat this trade setup"
-          >
-            Replay Voice
-          </button>
+          {onReplayAudio && proposal.verbal_pitch && (
+            <button
+              onClick={() => onReplayAudio(proposal.verbal_pitch || "")}
+              className="btn btn-secondary"
+              style={{ padding: "4px 8px", fontSize: "11px" }}
+              title="Hear Gemini repeat this trade setup"
+            >
+              Replay Voice
+            </button>
+          )}
         </div>
         <p style={{ fontSize: "13px", color: "var(--text-main)", fontStyle: "italic", marginBottom: "6px" }}>
-          "{proposal.verbal_pitch}"
+          "{proposal.reasoning || proposal.verbal_pitch || "Quantitative A+ Setup Triggered."}"
         </p>
         <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>
           <strong>Technical Rationale:</strong> {proposal.technical_rationale}

@@ -7,7 +7,7 @@ interface PositionsTableProps {
   orders: OrderRecord[];
   history: HistoryItem[];
   onClosePosition: (id: string) => void;
-  onRefreshHistory: () => void;
+  onRefreshHistory?: () => void;
 }
 
 export const PositionsTable: React.FC<PositionsTableProps> = ({
@@ -15,7 +15,7 @@ export const PositionsTable: React.FC<PositionsTableProps> = ({
   orders,
   history,
   onClosePosition,
-  onRefreshHistory
+  onRefreshHistory = () => {}
 }) => {
   const [activeTab, setActiveTab] = useState<"positions" | "history" | "orders">("history");
 

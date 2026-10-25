@@ -1,109 +1,80 @@
 """
-Quantitative Trade Analysis & Generative AI Reasoning Engine - KitePulse AI
+Trade Analysis Engine - KitePulse AI
 
-This module implements the trade strategy analyzer layer adhering to the BaseTradeAnalyzer
-interface. It leverages Google Gemini Generative AI (using the official google-genai SDK)
-with structured schema output to reason over technical indicators (EMA, RSI, VWAP, ATR)
-and options derivatives, providing instant fallback to deterministic quantitative rules
-if offline or unconfigured.
+The deterministic quantitative rules engine is the ONLY source of trade decisions and price
+levels (entry, stop-loss, targets). The configured LLM (Gemini, OpenAI or Claude, chosen in
+Settings) is used purely to explain the trade in natural language. It cannot create a trade the
+rules rejected, and it cannot move any price level.
+
+Every signal also passes through trade_validation before it leaves this module.
 """
 
-import json
-import time
+import re
 import logging
-from typing import Dict, Any, Optional, Literal
-from pydantic import BaseModel, Field
+from typing import Dict, Any, Optional
+
 import pandas as pd
 
-from config import settings, is_index_symbol
-from prompts import render_prompt, INTRADAY_MARKET_SETUP_PROMPT
+import ai_providers
+from prompts import render_prompt, TRADE_EXPLANATION_PROMPT
 from core.interfaces import BaseTradeAnalyzer
-from server_logger import (
-    log_outgoing_request,
-    log_outgoing_response,
-    log_outgoing_error
-)
+from quant_strategy import quant_engine
+from trade_validation import validate_signal
 
 logger = logging.getLogger(__name__)
 
+ACTION_WORDS = {
+    "BUY_CALL": "BUY CALL", "BUY_PUT": "BUY PUT",
+    "BUY_EQUITY": "LONG", "SHORT_EQUITY": "SHORT",
+}
 
-class TradeProposalSchema(BaseModel):
-    """
-    Pydantic schema enforcing structured JSON output from the Gemini LLM.
-    Guarantees deterministic formatting and eliminates JSON parsing hallucinations.
-    """
-    symbol: str = Field(description="Underlying trading symbol, e.g. NIFTY 50, BANK NIFTY, RELIANCE")
-    instrument_to_trade: str = Field(description="Instrument name to trade, e.g. NIFTY 24850 CE or RELIANCE MIS")
-    signal_type: Literal["BUY_CALL", "BUY_PUT", "BUY_EQUITY", "SHORT_EQUITY"] = Field(description="Actionable trade signal type")
-    direction: Literal["BULLISH", "BEARISH"] = Field(description="Market directional bias")
-    lot_size: int = Field(default=1, description="Strictly 1 lot for risk control")
-    entry_price: float = Field(description="Recommended entry execution price")
-    stop_loss: float = Field(description="Strict stop-loss price calculated from technicals / ATR")
-    target_1: float = Field(description="Target 1 price level (at least 1:1.8 risk-to-reward)")
-    target_2: float = Field(description="Target 2 extended price level")
-    risk_reward: str = Field(description="Calculated risk to reward ratio, e.g. 1:2.0")
-    confidence: int = Field(description="Confidence percentage score (50 to 99)")
-    verbal_pitch: str = Field(description="Concise verbal pitch for audio speech synthesis asking for user confirmation")
-    technical_rationale: str = Field(description="Detailed institutional technical rationale explaining EMA, RSI, VWAP indicators")
+
+def _numbers_in(text: str) -> list:
+    return [float(n.replace(",", "")) for n in re.findall(r"\d[\d,]*\.?\d*", text or "")]
+
+
+def _pitch_matches_levels(pitch: str, signal: Dict[str, Any]) -> bool:
+    """True only if the spoken pitch quotes the real entry and stop-loss."""
+    nums = _numbers_in(pitch)
+    for level in (signal["entry_price"], signal["stop_loss"]):
+        if not any(abs(n - float(level)) < 0.011 for n in nums):
+            return False
+    return True
 
 
 class GeminiMarketAnalyzer(BaseTradeAnalyzer):
     """
-    Quantitative Trade Analysis and Generative AI Reasoning Engine.
-
-    Responsibilities:
-        - Ingests live technical indicators (EMA, RSI, VWAP, ATR) and options chains.
-        - Interfaces with Google Gemini LLMs using structured Pydantic schema generation.
-        - Provides deterministic, quantitative algorithmic fallback when API keys are unconfigured
-          or remote network calls encounter transient failures.
-        - Formulates concise, natural-language verbal pitches suitable for Web Speech audio synthesis.
-
-    Extends:
-        - `core.interfaces.BaseTradeAnalyzer`: Abstract interface specifying the standard
-          `analyze_market_setup` contract.
-
-    Uses / Dependencies:
-        - `google.genai` SDK: Official Google GenAI client for structured LLM reasoning.
-        - `TradeProposalSchema`: Enforces deterministic JSON output and schema validation.
-        - `TradingRepository` (`database`): Encrypted credential store for runtime API key extraction.
-        - `settings` (`config`): Fallback configuration for Gemini model name and credentials.
-        - `server_logger`: Structured audit telemetry for external AI API requests and responses.
-
-    Design Pattern:
-        - Strategy Pattern (pluggable trade analyzer adhering to `BaseTradeAnalyzer`).
-        - Fallback Strategy Pattern (graceful degradation from GenAI to algorithmic rules).
+    Quant-gated analyzer. Name kept for backward compatibility; the LLM provider is
+    selected at runtime through ai_providers (Gemini, OpenAI or Anthropic).
     """
 
     def __init__(self):
-        import database
-        db_key = database.get_secure_setting("GEMINI_API_KEY", "")
-        self.api_key: str = db_key or settings.GEMINI_API_KEY
-        self.model_name: str = settings.GEMINI_MODEL
-        self.client = None
-        self._init_client()
+        self._ai_disabled = False
+
+    # ------------------------------------------------------------------ AI status
+
+    @property
+    def client(self):
+        """Truthy when the active provider has an API key (kept for existing callers)."""
+        if self._ai_disabled:
+            return None
+        try:
+            return True if ai_providers.is_configured() else None
+        except Exception:
+            return None
+
+    @client.setter
+    def client(self, value) -> None:
+        self._ai_disabled = value is None
 
     def load_credentials(self) -> None:
-        """Reloads Gemini API key from the encrypted vault and re-initializes client."""
-        import database
-        db_key = database.get_secure_setting("GEMINI_API_KEY", "")
-        self.api_key = db_key or settings.GEMINI_API_KEY
-        self._init_client()
-
-    def _init_client(self) -> None:
-        """Initializes the google-genai Client."""
-        self.client = None
-        if self.api_key:
-            try:
-                from google import genai
-                self.client = genai.Client(api_key=self.api_key)
-                logger.info("Initialized Google GenAI client successfully.")
-            except Exception as e:
-                logger.error(f"Failed to initialize GenAI client: {e}")
+        """Credentials are read from the vault on every call; nothing to reload."""
 
     def update_api_key(self, key: str) -> None:
-        """Updates runtime API key and re-initializes client."""
-        self.api_key = key
-        self._init_client()
+        """Backward-compatible helper: stores a Gemini key."""
+        ai_providers.set_api_key("gemini", key)
+
+    # ------------------------------------------------------------------ analysis
 
     def analyze_market_setup(
         self,
@@ -112,204 +83,86 @@ class GeminiMarketAnalyzer(BaseTradeAnalyzer):
         candle_df: Optional[pd.DataFrame]
     ) -> Dict[str, Any]:
         """
-        Analyzes live market indicators and produces high-probability Put/Call or Intraday setup.
-
-        Args:
-            symbol: Ticker symbol (e.g. 'NIFTY 50').
-            quote: Live market quote dictionary.
-            candle_df: Historical candlestick DataFrame enriched with indicators.
-
-        Returns:
-            Dictionary matching the TradeProposalSchema specification.
+        Returns an actionable signal dict (actionable=True) or a NO_TRADE dict
+        (actionable=False). Callers must check the flag before creating a proposal.
         """
-        if candle_df is None or candle_df.empty:
-            return self._generate_algorithmic_fallback(symbol, quote, 50.0, 0.0, 0.0)
+        quant = quant_engine.evaluate_quantitative_setup(symbol, quote, candle_df)
+        if not quant.get("actionable"):
+            return self._no_trade(symbol, quant.get("reason", "No qualifying setup."), quant)
 
-        last_row = candle_df.iloc[-1]
-        close = float(last_row["close"])
-        rsi = float(last_row.get("rsi_14", 50.0))
-        ema_9 = float(last_row.get("ema_9", close))
-        ema_21 = float(last_row.get("ema_21", close))
-        vwap = float(last_row.get("vwap", close))
-        atr = float(last_row.get("atr_14", close * 0.005))
-
-        # If Gemini client is active, request model analysis
-        if self.client:
-            try:
-                analysis = self._call_gemini_model(symbol, quote, close, rsi, ema_9, ema_21, vwap, atr)
-                if analysis:
-                    return analysis
-            except Exception as e:
-                logger.warning(f"Gemini API call failed, falling back to algorithmic analysis: {e}")
-
-        # Deterministic institutional setup fallback
-        return self._generate_algorithmic_fallback(symbol, quote, rsi, ema_9 - ema_21, close - vwap, atr)
-
-    def _call_gemini_model(
-        self,
-        symbol: str,
-        quote: Dict[str, Any],
-        close: float,
-        rsi: float,
-        ema_9: float,
-        ema_21: float,
-        vwap: float,
-        atr: float
-    ) -> Optional[Dict[str, Any]]:
-        """Invokes Google Gemini with structured output schema."""
-        prompt = render_prompt(
-            INTRADAY_MARKET_SETUP_PROMPT,
-            symbol=symbol,
-            close=close,
-            ema_9=f"{ema_9:.2f}",
-            ema_21=f"{ema_21:.2f}",
-            vwap=f"{vwap:.2f}",
-            rsi=f"{rsi:.2f}",
-            atr=f"{atr:.2f}",
-            call_option=quote.get("call_option"),
-            put_option=quote.get("put_option"),
-        )
-        call_start = time.time()
-        log_outgoing_request("Google Gemini", "generate_content", {
-            "model": self.model_name,
-            "symbol": symbol,
-            "close": close,
-            "rsi": round(rsi, 2),
-            "response_schema": "TradeProposalSchema"
-        })
-        try:
-            from google.genai import types
-            config = types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=TradeProposalSchema,
-                temperature=0.2,
-            )
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=prompt,
-                config=config,
-            )
-            dur = round((time.time() - call_start) * 1000, 2)
-            log_outgoing_response("Google Gemini", "generate_content", {"model": self.model_name, "status": "200_OK"}, dur)
-        except Exception as ge:
-            dur = round((time.time() - call_start) * 1000, 2)
-            log_outgoing_error("Google Gemini", "generate_content", ge, dur)
-            raise ge
-
-        # Parse verified JSON payload
-        text = response.text.strip()
-        data = json.loads(text)
-        data["lot_size"] = 1  # Strictly enforce safety lot size of 1
-        data["ai_model"] = self.model_name
-        data["source"] = "Google Gemini AI"
-        return data
-
-    def _resolve_index_option_setup(
-        self,
-        symbol: str,
-        quote: Dict[str, Any],
-        is_bullish: bool
-    ) -> Dict[str, Any]:
-        """Calculates deterministic ATM index options premium levels and targets."""
-        opt = quote.get("call_option" if is_bullish else "put_option")
-        opt_symbol = opt["symbol"] if opt else f"{symbol} ATM {'CE' if is_bullish else 'PE'}"
-        premium = opt["ltp"] if opt else 115.0
-
-        signal_type = "BUY_CALL" if is_bullish else "BUY_PUT"
-        entry_price = round(premium, 2)
-        risk = round(max(8.0, premium * 0.14), 2)  # ~14% options stop-loss
-        stop_loss = round(entry_price - risk, 2)
-        target_1 = round(entry_price + (risk * 1.8), 2)
-        target_2 = round(entry_price + (risk * 2.5), 2)
-
-        return {
-            "signal_type": signal_type,
-            "instrument": opt_symbol,
-            "entry_price": entry_price,
-            "stop_loss": stop_loss,
-            "target_1": target_1,
-            "target_2": target_2,
-        }
-
-    def _resolve_equity_intraday_setup(
-        self,
-        symbol: str,
-        quote: Dict[str, Any],
-        is_bullish: bool,
-        atr: float
-    ) -> Dict[str, Any]:
-        """Calculates deterministic equity intraday MIS entry, stop-loss, and multi-tier targets."""
-        ltp = quote["ltp"]
-        signal_type = "BUY_EQUITY" if is_bullish else "SHORT_EQUITY"
-        entry_price = round(ltp, 2)
-        risk = round(max(2.0, atr * 1.2), 2)
-
-        stop_loss = round(entry_price - risk if is_bullish else entry_price + risk, 2)
-        target_1 = round(entry_price + (risk * 2.0) if is_bullish else entry_price - (risk * 2.0), 2)
-        target_2 = round(entry_price + (risk * 3.0) if is_bullish else entry_price - (risk * 3.0), 2)
-
-        return {
-            "signal_type": signal_type,
-            "instrument": f"{symbol} MIS",
-            "entry_price": entry_price,
-            "stop_loss": stop_loss,
-            "target_1": target_1,
-            "target_2": target_2,
-        }
-
-    def _build_verbal_pitch(self, signal_type: str, instrument: str, entry: float, sl: float, tp: float) -> str:
-        """Formulates concise voice prompt for browser speech synthesis."""
-        action_name = "BUY CALL" if signal_type == "BUY_CALL" else (
-            "BUY PUT" if signal_type == "BUY_PUT" else ("LONG" if signal_type == "BUY_EQUITY" else "SHORT")
-        )
-        return (
-            f"AI Trade Alert: High conviction {action_name} setup on {instrument}. "
-            f"Entry at ₹{entry}, Stop Loss at ₹{sl}, Target at ₹{tp}. "
-            f"Risk reward ratio is 1 to 2. Please say 'Approve' to confirm or 'Reject' to pass."
-        )
-
-    def _generate_algorithmic_fallback(
-        self,
-        symbol: str,
-        quote: Dict[str, Any],
-        rsi: float,
-        ema_diff: float,
-        vwap_diff: float,
-        atr: float = 10.0
-    ) -> Dict[str, Any]:
-        """Provides deterministic, rule-based intraday setup if offline or API key pending."""
-        is_index = is_index_symbol(symbol)
-        is_bullish = ema_diff >= 0 and vwap_diff >= 0 and rsi >= 48
-        direction = "BULLISH" if is_bullish else "BEARISH"
-
-        if is_index:
-            setup = self._resolve_index_option_setup(symbol, quote, is_bullish)
-        else:
-            setup = self._resolve_equity_intraday_setup(symbol, quote, is_bullish, atr)
-
-        verbal_pitch = self._build_verbal_pitch(
-            setup["signal_type"], setup["instrument"], setup["entry_price"], setup["stop_loss"], setup["target_1"]
-        )
-
-        return {
-            "symbol": symbol,
-            "instrument_to_trade": setup["instrument"],
-            "signal_type": setup["signal_type"],
-            "direction": direction,
+        signal = {
+            "symbol": quant["symbol"],
+            "instrument_to_trade": quant["instrument_to_trade"],
+            "signal_type": quant["signal_type"],
+            "direction": quant["direction"],
             "lot_size": 1,
-            "entry_price": setup["entry_price"],
-            "stop_loss": setup["stop_loss"],
-            "target_1": setup["target_1"],
-            "target_2": setup["target_2"],
-            "risk_reward": "1:2.0",
-            "confidence": 85 if abs(rsi - 50) > 8 else 75,
-            "verbal_pitch": verbal_pitch,
-            "technical_rationale": (
-                f"{'Bullish trend continuation' if is_bullish else 'Bearish reversal breakdown'} "
-                f"confirmed by EMA alignment and VWAP support. RSI is at {rsi:.1f}."
-            ),
-            "ai_model": "Algorithmic Quantitative Fallback",
-            "source": "Algorithmic Quant Rules"
+            "entry_price": quant["entry_price"],
+            "stop_loss": quant["stop_loss"],
+            "target_1": quant["target_1"],
+            "target_2": quant["target_2"],
+            "risk_reward": quant["risk_reward"],
+            "confidence": quant["confidence"],
+            "confluence_score": quant["confluence_score"],
+            "verbal_pitch": quant["verbal_pitch"],
+            "technical_rationale": quant["technical_rationale"],
+            "ai_model": "Quant Rule Engine",
+            "source": "Algorithmic Quant Rules",
+            "actionable": True,
+        }
+
+        problems = validate_signal(signal)
+        if problems:
+            logger.warning(f"Signal for {symbol} rejected by validator: {problems}")
+            return self._no_trade(symbol, "Signal failed validation: " + " ".join(problems), quant)
+
+        if self.client:
+            self._apply_ai_explanation(signal, quote, quant)
+        return signal
+
+    def _apply_ai_explanation(self, signal: Dict[str, Any], quote: Dict[str, Any], quant: Dict[str, Any]) -> None:
+        """Replaces pitch/rationale text with the LLM's explanation. Never touches price levels."""
+        provider = ai_providers.get_active_provider()
+        model = ai_providers.get_model(provider)
+        prompt = render_prompt(
+            TRADE_EXPLANATION_PROMPT,
+            action=ACTION_WORDS.get(signal["signal_type"], signal["signal_type"]),
+            instrument=signal["instrument_to_trade"],
+            symbol=signal["symbol"],
+            close=f"{float(quote.get('ltp') or 0):.2f}",
+            entry=signal["entry_price"],
+            stop_loss=signal["stop_loss"],
+            target_1=signal["target_1"],
+            target_2=signal["target_2"],
+            confluence_score=signal["confluence_score"],
+            factor_findings=quant.get("technical_rationale", ""),
+        )
+        try:
+            data = ai_providers.generate_json(prompt, provider=provider, model=model)
+        except Exception as e:
+            logger.warning(f"AI explanation unavailable ({provider}/{model}); using rule-engine text: {e}")
+            return
+
+        pitch = str(data.get("verbal_pitch", "")).strip()
+        rationale = str(data.get("technical_rationale", "")).strip()
+        if rationale:
+            signal["technical_rationale"] = rationale
+        if pitch and _pitch_matches_levels(pitch, signal):
+            signal["verbal_pitch"] = pitch
+        elif pitch:
+            logger.warning("AI pitch quoted levels that differ from the engine's; keeping rule-engine pitch.")
+        signal["ai_model"] = f"{provider}/{model}"
+        signal["source"] = f"{ai_providers.PROVIDERS[provider]['label']} (explanation only)"
+
+    @staticmethod
+    def _no_trade(symbol: str, reason: str, quant: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "symbol": symbol,
+            "actionable": False,
+            "decision": "NO_TRADE",
+            "reason": reason,
+            "confluence_score": quant.get("confluence_score", 0),
+            "technical_rationale": quant.get("technical_rationale", ""),
+            "source": "Algorithmic Quant Rules",
         }
 
 

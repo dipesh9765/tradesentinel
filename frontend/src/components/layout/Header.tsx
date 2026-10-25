@@ -1,5 +1,5 @@
 import React from "react";
-import { MicOff, Settings as SettingsIcon, ShieldCheck, Zap, Briefcase, Bell, Volume2, Lock, ShieldAlert, Wallet, RotateCw } from "lucide-react";
+import { Settings as SettingsIcon, ShieldCheck, Zap, Bell, Lock, Wallet, RotateCw, Radar } from "lucide-react";
 import type { PortfolioSummary, KiteBalance } from "../../types";
 
 interface HeaderProps {
@@ -8,13 +8,8 @@ interface HeaderProps {
   isLoadingBalance?: boolean;
   onRefreshBalance?: () => void;
   lastBalanceRefreshTime?: string | null;
-  isMuted: boolean;
-  onToggleMute: () => void;
   onOpenSettings: () => void;
   onToggleMode?: (mode: "PAPER" | "LIVE") => void;
-  isListening: boolean;
-  officeMode: boolean;
-  onToggleOfficeMode: () => void;
   notificationPermission: NotificationPermission;
   onRequestNotificationPermission: () => void;
   kiteConnected?: boolean;
@@ -27,13 +22,8 @@ export const Header: React.FC<HeaderProps> = ({
   isLoadingBalance = false,
   onRefreshBalance,
   lastBalanceRefreshTime,
-  isMuted,
-  onToggleMute,
   onOpenSettings,
   onToggleMode,
-  isListening,
-  officeMode,
-  onToggleOfficeMode,
   notificationPermission,
   onRequestNotificationPermission,
   kiteConnected,
@@ -59,7 +49,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="glass-panel" style={{ padding: "14px 24px", marginBottom: "20px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "14px" }}>
-      {/* Brand & Mode */}
+      {/* Brand & Status */}
       <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <div style={{
@@ -90,14 +80,14 @@ export const Header: React.FC<HeaderProps> = ({
                 alignItems: "center",
                 gap: "4px"
               }}>
-                <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: isListening ? "var(--color-bull)" : "var(--text-dim)" }}></span>
-                Intraday Co-Pilot
+                <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--color-bull)" }}></span>
+                Quant Engine v2
               </span>
             </div>
             <div style={{ fontSize: "12px", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "6px" }}>
               <span>Zerodha Kite</span>
               <span>•</span>
-              <span style={{ color: "#a855f7" }}>Gemini 2.5 Pro</span>
+              <span style={{ color: "#a855f7" }}>A+ Setup Hunter</span>
             </div>
           </div>
         </div>
@@ -136,6 +126,23 @@ export const Header: React.FC<HeaderProps> = ({
           </span>
         </button>
 
+        {/* Autonomous Opportunity Scanner Status Indicator */}
+        <div style={{
+          padding: "5px 12px",
+          borderRadius: "12px",
+          background: "rgba(0, 230, 153, 0.08)",
+          border: "1px solid rgba(0, 230, 153, 0.3)",
+          display: "flex",
+          alignItems: "center",
+          gap: "7px",
+          fontSize: "12px",
+          fontWeight: 600,
+          color: "var(--color-bull)"
+        }}>
+          <Radar size={14} style={{ animation: "spin 4s linear infinite" }} />
+          <span>Auto-Scanner Active (A+ Filter)</span>
+        </div>
+
         {/* Broker Feed Status Indicator */}
         <div style={{
           padding: "5px 10px",
@@ -155,32 +162,13 @@ export const Header: React.FC<HeaderProps> = ({
             background: kiteConnected ? "var(--color-bull)" : "#ffb300",
             boxShadow: kiteConnected ? "0 0 6px var(--color-bull)" : "none"
           }} />
-          <span>{kiteConnected ? "Kite Market Feed" : "Kite Disconnected"}</span>
+          <span>{kiteConnected ? "Kite Feed Connected" : "Kite Disconnected"}</span>
         </div>
-
-        {/* Office Mode Toggle Badge */}
-        <button
-          onClick={onToggleOfficeMode}
-          className="btn"
-          style={{
-            padding: "5px 12px",
-            borderRadius: "20px",
-            background: officeMode ? "rgba(0, 240, 255, 0.15)" : "rgba(255, 255, 255, 0.05)",
-            border: `1px solid ${officeMode ? "var(--color-cyan)" : "var(--border-color)"}`,
-            color: officeMode ? "var(--color-cyan)" : "var(--text-muted)",
-            fontSize: "12px",
-            cursor: "pointer"
-          }}
-          title={officeMode ? "Office Mode Active: Voice muted, desktop & webhook notifications enabled" : "Switch to Office Mode"}
-        >
-          <Briefcase size={14} />
-          <span>{officeMode ? "OFFICE SILENT MODE" : "VOICE RADAR MODE"}</span>
-        </button>
       </div>
 
       {/* Stats & Actions */}
       <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-        {/* Desktop Notification Request Button if not yet granted */}
+        {/* Desktop Notification Request Button */}
         {notificationPermission !== "granted" ? (
           <button
             onClick={onRequestNotificationPermission}
@@ -205,10 +193,10 @@ export const Header: React.FC<HeaderProps> = ({
               alignItems: "center",
               gap: "4px"
             }}
-            title="Windows Desktop Notifications Active"
+            title="Desktop Notifications Active"
           >
             <Bell size={13} />
-            <span>Alerts On</span>
+            <span>Alerts Active</span>
           </div>
         )}
 
@@ -358,41 +346,6 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
         </div>
-
-        {/* Audio Toggle (Optional in Office Mode) */}
-        {!officeMode && (
-          <button
-            onClick={onToggleMute}
-            className="btn btn-secondary"
-            title={isMuted ? "Unmute Voice Audio" : "Mute Voice Audio"}
-            style={{ padding: "7px 11px" }}
-          >
-            {isMuted ? <MicOff size={15} color="var(--color-bear)" /> : <Volume2 size={15} color="var(--color-cyan)" />}
-          </button>
-        )}
-
-        {/* Kite Connection Status Badge */}
-        {kiteConnected === false && (
-          <div
-            onClick={onOpenSettings}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "6px 10px",
-              borderRadius: "8px",
-              background: "rgba(255, 179, 0, 0.15)",
-              border: "1px solid rgba(255, 179, 0, 0.4)",
-              color: "#ffb300",
-              fontSize: "12px",
-              cursor: "pointer"
-            }}
-            title="Zerodha Kite is disconnected. Click to configure credentials & login."
-          >
-            <ShieldAlert size={14} />
-            <span>Kite: Setup Required</span>
-          </div>
-        )}
 
         {/* Settings Button */}
         <button

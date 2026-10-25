@@ -289,6 +289,14 @@ body {
   line-height: 1.4;
 }
 
+/* Responsive App Container */
+.app-container {
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 20px;
+  width: 100%;
+}
+
 /* Responsive Mobile Layout (Phones & Tablets) */
 .trading-layout {
   display: grid;
@@ -297,13 +305,62 @@ body {
   align-items: start;
 }
 
+/* Mobile Segmented View Tabs */
+.mobile-tabs-container {
+  display: none;
+  background: rgba(13, 17, 26, 0.9);
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  margin-bottom: 16px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.mobile-tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--font-main);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 6px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mobile-tab-btn.active {
+  background: rgba(0, 240, 255, 0.15);
+  color: var(--color-cyan);
+  border: 1px solid var(--border-glow);
+}
+
+/* Mobile Responsive Breakpoints */
 @media (max-width: 900px) {
-  .trading-layout {
-    grid-template-columns: 1fr;
+  .app-container {
+    padding: 10px 8px !important;
   }
 
-  body {
-    padding: 10px !important;
+  .trading-layout {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .mobile-tabs-container {
+    display: grid;
+  }
+
+  .desktop-only {
+    display: none !important;
+  }
+
+  .mobile-only {
+    display: block !important;
   }
 
   .glass-panel {
@@ -312,8 +369,36 @@ body {
   }
 
   .btn {
-    padding: 12px 16px;
-    font-size: 14px;
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+
+  /* Responsive tables */
+  .table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 600px) {
+  .header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .header-brand {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .btn-responsive-group {
+    flex-direction: column !important;
+    width: 100%;
+  }
+
+  .btn-responsive-group .btn {
+    width: 100%;
   }
 }
 

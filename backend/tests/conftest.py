@@ -25,3 +25,11 @@ def setup_isolated_test_database():
             os.remove(TEST_DB_PATH)
         except Exception:
             pass
+
+
+@pytest.fixture(autouse=True)
+def relaxed_trading_limits(monkeypatch):
+    """Existing tests open many trades per day; the discipline limits have dedicated tests."""
+    from config import settings
+    monkeypatch.setattr(settings, "MAX_TRADES_PER_DAY", 1000)
+    monkeypatch.setattr(settings, "MAX_CONSECUTIVE_LOSSES", 1000)

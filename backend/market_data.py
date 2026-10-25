@@ -144,6 +144,17 @@ class MarketDataManager(BaseMarketDataProvider):
         try:
             kite = kite_executor.kite_client
             instruments = list(KITE_INSTRUMENT_MAP.values())
+
+            # Dynamically include active position instruments for real-time derivative tick pricing
+            for pos in kite_executor.positions.values():
+                inst = pos.get("instrument", "").replace(" MIS", "").replace(" CNC", "").strip()
+                if inst:
+                    clean_tag = inst.replace(" ", "")
+                    if "CE" in clean_tag or "PE" in clean_tag:
+                        nfo_key = f"NFO:{clean_tag}"
+                        if nfo_key not in instruments:
+                            instruments.append(nfo_key)
+
             call_start = datetime.datetime.now()
             log_outgoing_request("Zerodha Kite", "quote", {"instruments_count": len(instruments)})
             raw_quotes = kite.quote(instruments)
@@ -154,6 +165,14 @@ class MarketDataManager(BaseMarketDataProvider):
 
             for symbol, kite_key in KITE_INSTRUMENT_MAP.items():
                 self._parse_single_quote(symbol, kite_key, raw_quotes, now_str)
+
+            # Store raw quote prices for direct instrument lookup
+            for k, q in raw_quotes.items():
+                ltp = float(q.get("last_price", 0.0))
+                if ltp > 0:
+                    self.live_prices[k] = ltp
+                    short_k = k.split(":")[-1] if ":" in k else k
+                    self.live_prices[short_k] = ltp
 
             self.is_live = True
             self.status_message = "Live data connected from Zerodha Kite."
@@ -315,6 +334,28 @@ class MarketDataManager(BaseMarketDataProvider):
                 "rsi": _safe_float(row.get("rsi_14"), 50.0)
             })
         return records
+
+    def fetch_history_df(self, symbol: str, days: int) -> pd.DataFrame:
+        """Raw 5-minute OHLCV history for backtesting. Raises ValueError with a user-facing reason."""
+        prereq = self._check_kite_session_prerequisites()
+        if prereq:
+            raise ValueError(prereq["message"])
+        token = self._resolve_instrument_token(symbol)
+        if not token:
+            raise ValueError(f"Unknown instrument '{symbol}' or no live quote to resolve its token.")
+        kite_executor.verify_outgoing_kite_request()
+        now = datetime.datetime.now()
+        raw = kite_executor.kite_client.historical_data(
+            instrument_token=token,
+            from_date=now - datetime.timedelta(days=days),
+            to_date=now,
+            interval="5minute"
+        )
+        if not raw:
+            raise ValueError(f"Kite returned no candles for {symbol}.")
+        df = pd.DataFrame(raw)
+        df["timestamp"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d %H:%M:%S")
+        return df
 
     def get_candles_meta(self, symbol: str, limit: int = 60) -> Dict[str, Any]:
         """

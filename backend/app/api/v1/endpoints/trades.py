@@ -4,7 +4,7 @@ Trading Operations, AI Proposal Evaluation & Order Management Endpoints
 
 import asyncio
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 
 import database
 from app.api.deps import require_auth
@@ -21,7 +21,7 @@ router = APIRouter(tags=["Trading Operations"])
 
 @router.post("/api/ai/scan", dependencies=[Depends(require_auth)])
 @router.post("/api/trade/scan", dependencies=[Depends(require_auth)])
-def scan_symbol_endpoint(req: ScanRequest):
+async def scan_symbol_endpoint(req: ScanRequest, background_tasks: BackgroundTasks):
     """
     Triggers AI Quantitative Market Scan.
     Requires connected Zerodha Kite session for authentic data feeds.
@@ -36,25 +36,36 @@ def scan_symbol_endpoint(req: ScanRequest):
     candle_df = market_data_manager.candles_data.get(req.symbol)
 
     signal = gemini_analyzer.analyze_market_setup(req.symbol, quote, candle_df)
-    proposal = kite_executor.create_trade_proposal(signal)
+    if not signal.get("actionable"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"No trade: {signal.get('reason', 'no qualifying setup')}"
+        )
+    try:
+        proposal = kite_executor.create_trade_proposal(signal)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"No trade: {e}")
 
-    asyncio.create_task(notification_service.notify_trade_proposal(proposal))
-    return proposal
+    background_tasks.add_task(notification_service.notify_trade_proposal, proposal)
+    return {"proposal": proposal, **proposal}
 
 
 @router.post("/api/trades/approve", dependencies=[Depends(require_auth)])
 @router.post("/api/trade/approve", dependencies=[Depends(require_auth)])
-def approve_trade(req: ApproveRequest):
+async def approve_trade(req: ApproveRequest, background_tasks: BackgroundTasks):
     """
     User confirms an AI trade proposal (LIVE or PAPER mode).
     Enforces risk guardrail of max 1 lot during initial phase.
     """
     try:
-        executed_trade = kite_executor.approve_trade(req.proposal_id)
+        # Live entries poll the broker for fills; keep that off the event loop.
+        executed_trade = await asyncio.to_thread(kite_executor.approve_trade, req.proposal_id)
         if executed_trade and "order" in executed_trade and "position" in executed_trade:
-            asyncio.create_task(notification_service.notify_trade_executed(
-                executed_trade["order"], executed_trade["position"]
-            ))
+            background_tasks.add_task(
+                notification_service.notify_trade_executed,
+                executed_trade["order"],
+                executed_trade["position"]
+            )
         return {"success": True, "executed_trade": executed_trade}
     except Exception as e:
         logger.error(f"Trade approval failed: {e}")
@@ -91,6 +102,16 @@ def close_position(req: ClosePositionRequest):
         return {"success": True, "result": res}
     except Exception as e:
         logger.error(f"Manual position close failed: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/api/trade/reconcile", dependencies=[Depends(require_auth)])
+def reconcile_positions():
+    """Compares tracked LIVE positions against Zerodha's net positions and books any that are already flat."""
+    try:
+        return kite_executor.reconcile_live_positions()
+    except Exception as e:
+        logger.error(f"Position reconcile failed: {e}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 

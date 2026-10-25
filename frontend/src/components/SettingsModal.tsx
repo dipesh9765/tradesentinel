@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { X, Key, ExternalLink, Check, Bell, Send, Eye, EyeOff, ShieldCheck, Sparkles, Lock } from "lucide-react";
-import { fetchSettingsApi } from "../services/api";
+import { X, Key, ExternalLink, Check, Bell, Send, Eye, EyeOff, ShieldCheck, Sparkles, Lock, CheckCircle2, AlertCircle, Smartphone } from "lucide-react";
+import { fetchSettingsApi, generateKiteSessionApi } from "../services/api";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -16,7 +16,7 @@ interface SettingsModalProps {
     discord_webhook_url?: string;
     slack_webhook_url?: string;
   }) => Promise<void>;
-  currentMode: "PAPER" | "LIVE";
+  currentMode?: "PAPER" | "LIVE" | string;
   onOpenKiteLogin: () => void;
   onTestNotification: () => Promise<void>;
 }
@@ -25,7 +25,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
   onSave,
-  currentMode,
+  currentMode = "PAPER",
   onOpenKiteLogin,
   onTestNotification
 }) => {
@@ -37,11 +37,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [telegramChatId, setTelegramChatId] = useState("");
   const [discordWebhook, setDiscordWebhook] = useState("");
   const [slackWebhook, setSlackWebhook] = useState("");
-  const [mode, setMode] = useState<"PAPER" | "LIVE">(currentMode);
+  const [mode, setMode] = useState<"PAPER" | "LIVE">((currentMode as "PAPER" | "LIVE") || "PAPER");
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [testingNotification, setTestingNotification] = useState(false);
   const [configuredStatus, setConfiguredStatus] = useState<any>(null);
+
+  // Manual OAuth Redirect / Request Token helper state
+  const [pastedRedirectInput, setPastedRedirectInput] = useState("");
+  const [isActivatingSession, setIsActivatingSession] = useState(false);
+  const [sessionSuccessMessage, setSessionSuccessMessage] = useState<string | null>(null);
+  const [sessionErrorMessage, setSessionErrorMessage] = useState<string | null>(null);
 
   // Field visibility toggles
   const [showGeminiKey, setShowGeminiKey] = useState(false);
@@ -90,6 +96,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       alert("Failed to save settings: " + err);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleActivateSessionFromRedirect = async () => {
+    if (!pastedRedirectInput.trim()) {
+      setSessionErrorMessage("Please paste the redirect URL or request_token first.");
+      return;
+    }
+    setIsActivatingSession(true);
+    setSessionErrorMessage(null);
+    setSessionSuccessMessage(null);
+    try {
+      await generateKiteSessionApi(pastedRedirectInput.trim());
+      setSessionSuccessMessage("✅ Zerodha Kite daily session authenticated successfully!");
+      setPastedRedirectInput("");
+      const updated = await fetchSettingsApi();
+      setConfiguredStatus(updated);
+    } catch (e: any) {
+      setSessionErrorMessage(e.message || "Failed to generate session. Please check your Kite API Secret.");
+    } finally {
+      setIsActivatingSession(false);
     }
   };
 
@@ -335,6 +362,58 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <span className="form-hint">
                 Tip: Click <strong>Kite OAuth Login</strong> above to automatically generate this token each morning with 1 click.
               </span>
+            </div>
+
+            {/* Mobile & Remote Kite Session Activator */}
+            <div style={{
+              background: "rgba(0, 240, 255, 0.04)",
+              border: "1px dashed rgba(0, 240, 255, 0.3)",
+              borderRadius: "8px",
+              padding: "12px",
+              marginTop: "4px"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+                <Smartphone size={16} color="var(--color-cyan)" />
+                <span style={{ fontSize: "12px", fontWeight: 700, color: "#ffffff" }}>
+                  Mobile & Remote OAuth Token Helper
+                </span>
+              </div>
+              <p style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "8px", lineHeight: "1.4" }}>
+                If Zerodha redirects to a broken <em>localhost</em> URL on your phone, copy the entire URL or <code>request_token</code> from your mobile browser bar and paste it below:
+              </p>
+              
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <input
+                  type="text"
+                  placeholder="Paste URL (e.g. http://localhost:5173/?request_token=...)"
+                  value={pastedRedirectInput}
+                  onChange={(e) => setPastedRedirectInput(e.target.value)}
+                  className="form-input"
+                  style={{ flex: "1 1 200px", fontSize: "12px", padding: "8px 10px" }}
+                />
+                <button
+                  type="button"
+                  onClick={handleActivateSessionFromRedirect}
+                  disabled={isActivatingSession}
+                  className="btn btn-primary"
+                  style={{ padding: "8px 14px", fontSize: "12px", whiteSpace: "nowrap" }}
+                >
+                  {isActivatingSession ? "Activating..." : "Activate Session"}
+                </button>
+              </div>
+
+              {sessionSuccessMessage && (
+                <div style={{ marginTop: "8px", fontSize: "11.5px", color: "var(--color-bull)", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <CheckCircle2 size={14} />
+                  <span>{sessionSuccessMessage}</span>
+                </div>
+              )}
+              {sessionErrorMessage && (
+                <div style={{ marginTop: "8px", fontSize: "11.5px", color: "var(--color-bear)", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <AlertCircle size={14} />
+                  <span>{sessionErrorMessage}</span>
+                </div>
+              )}
             </div>
           </div>
 

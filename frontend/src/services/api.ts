@@ -178,7 +178,7 @@ export async function requestAiScan(symbol: string): Promise<TradeProposal> {
     throw new Error(err.detail || "AI market scan failed");
   }
   const data = await res.json();
-  return data.proposal;
+  return data.proposal || data;
 }
 
 export async function approveTradeApi(proposalId: string): Promise<any> {
@@ -291,13 +291,32 @@ export async function fetchKiteLoginUrl(): Promise<string> {
   return data.login_url;
 }
 
+export function extractRequestToken(rawInput: string): string {
+  if (!rawInput) return "";
+  const trimmed = rawInput.trim();
+  if (trimmed.includes("request_token=")) {
+    try {
+      const url = trimmed.startsWith("http") ? new URL(trimmed) : new URL("http://localhost/?" + trimmed);
+      return url.searchParams.get("request_token") || trimmed;
+    } catch {
+      const match = trimmed.match(/request_token=([a-zA-Z0-9_-]+)/);
+      return match ? match[1] : trimmed;
+    }
+  }
+  return trimmed;
+}
+
 export async function generateKiteSessionApi(requestToken: string): Promise<any> {
+  const token = extractRequestToken(requestToken);
   const res = await authFetch(`${API_BASE}/api/kite/session`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ request_token: requestToken })
+    body: JSON.stringify({ request_token: token })
   });
-  if (!res.ok) throw new Error("Failed to generate Kite daily session");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to generate Kite daily session. Check your token or API secret.");
+  }
   return res.json();
 }
 
@@ -357,3 +376,45 @@ export function subscribeToLiveTicks(onMessage: (data: any) => void): () => void
     ws?.close();
   };
 }
+
+export interface AIProviderInfo {
+  id: string;
+  label: string;
+  models: string[];
+  model: string;
+  has_key: boolean;
+  key_preview: string;
+  key_url: string;
+  key_hint: string;
+}
+
+export interface AIConfig {
+  active_provider: string;
+  providers: AIProviderInfo[];
+}
+
+async function aiRequest(path: string, payload?: object): Promise<any> {
+  const res = await authFetch(`${API_BASE}${path}`, payload ? {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  } : undefined);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || "AI provider request failed");
+  return data;
+}
+
+export const fetchAIConfigApi = (): Promise<AIConfig> => aiRequest("/api/ai/config");
+
+export const saveAIConfigApi = (payload: {
+  provider?: string;
+  target_provider?: string;
+  model?: string;
+  api_key?: string;
+}): Promise<AIConfig> => aiRequest("/api/ai/config", payload);
+
+export const testAIProviderApi = (payload: {
+  target_provider: string;
+  model?: string;
+  api_key?: string;
+}): Promise<{ success: boolean }> => aiRequest("/api/ai/test", payload);
