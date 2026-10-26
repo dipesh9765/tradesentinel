@@ -1,13 +1,14 @@
 import pytest
-import time
 from fastapi.testclient import TestClient
+
 import database
-from security import create_session_token, invalidate_session_token, ACTIVE_SESSIONS
 from kite_executor import kite_executor
-from market_data import market_data_manager
 from main import app
+from market_data import market_data_manager
+from security import ACTIVE_SESSIONS, create_session_token, invalidate_session_token
 
 client = TestClient(app)
+
 
 def test_kite_auth_guard_and_30s_verification():
     # 1. Clear sessions and lock vault

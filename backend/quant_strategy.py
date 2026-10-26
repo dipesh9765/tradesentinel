@@ -14,24 +14,19 @@ Core Pillars:
 7. Strict Risk-Reward Structuring (minimum 1:1.8, default 1:2.0, multi-target).
 """
 
-import math
 import datetime
 import logging
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Any
+
 import pandas as pd
-import numpy as np
 
 from config import is_index_symbol
-from technical_indicators import (
-    calculate_cpr,
-    calculate_pivot_points,
-    detect_rsi_divergence
-)
+from technical_indicators import calculate_cpr, calculate_pivot_points, detect_rsi_divergence
 
 logger = logging.getLogger(__name__)
 
 # Strike step intervals for Indian derivatives
-INDEX_STRIKE_STEPS: Dict[str, int] = {
+INDEX_STRIKE_STEPS: dict[str, int] = {
     "NIFTY 50": 50,
     "NIFTY BANK": 100,
     "BANK NIFTY": 100,
@@ -56,7 +51,7 @@ class InstitutionalQuantEngine:
         return 50
 
     @staticmethod
-    def resolve_optimal_strike(symbol: str, ltp: float, is_bullish: bool) -> Tuple[int, str]:
+    def resolve_optimal_strike(symbol: str, ltp: float, is_bullish: bool) -> tuple[int, str]:
         """
         Selects the optimal ATM or slight ITM option strike for high delta & liquidity.
         """
@@ -72,14 +67,16 @@ class InstitutionalQuantEngine:
             strike = atm_strike
             opt_type = "PE"
 
-        clean_symbol = "NIFTY" if "NIFTY 50" in symbol.upper() or symbol.upper() == "NIFTY" else (
-            "BANKNIFTY" if "BANK" in symbol.upper() else symbol.replace(" ", "")
+        clean_symbol = (
+            "NIFTY"
+            if "NIFTY 50" in symbol.upper() or symbol.upper() == "NIFTY"
+            else ("BANKNIFTY" if "BANK" in symbol.upper() else symbol.replace(" ", ""))
         )
         instrument_label = f"{clean_symbol} {strike} {opt_type}"
         return strike, instrument_label
 
     @staticmethod
-    def _previous_session_ohlc(candle_df: pd.DataFrame) -> Optional[Dict[str, float]]:
+    def _previous_session_ohlc(candle_df: pd.DataFrame) -> dict[str, float] | None:
         """High/low/close of the trading day before the latest bar's day, if the data holds one."""
         if "timestamp" not in candle_df.columns or candle_df.empty:
             return None
@@ -97,11 +94,11 @@ class InstitutionalQuantEngine:
     def evaluate_quantitative_setup(
         self,
         symbol: str,
-        quote: Dict[str, Any],
-        candle_df: Optional[pd.DataFrame],
-        prev_day_ohlc: Optional[Dict[str, float]] = None,
-        as_of: Optional[datetime.datetime] = None
-    ) -> Dict[str, Any]:
+        quote: dict[str, Any],
+        candle_df: pd.DataFrame | None,
+        prev_day_ohlc: dict[str, float] | None = None,
+        as_of: datetime.datetime | None = None,
+    ) -> dict[str, Any]:
         """
         Evaluates full multi-factor technical indicators and generates an institutional setup.
 
@@ -111,7 +108,9 @@ class InstitutionalQuantEngine:
         now_dt = as_of or datetime.datetime.now()
         ltp = float(quote.get("ltp", 0.0))
         if candle_df is None or len(candle_df) < 5 or ltp <= 0:
-            return self._build_empty_response(symbol, ltp, "Insufficient historical candle bars from Zerodha Kite.")
+            return self._build_empty_response(
+                symbol, ltp, "Insufficient historical candle bars from Zerodha Kite."
+            )
 
         last_row = candle_df.iloc[-1]
         close = float(last_row["close"])
@@ -134,8 +133,8 @@ class InstitutionalQuantEngine:
         # -------------------------------------------------------------
         # 15-Minute Opening Range (ORB) Filter (09:15 - 09:30 IST)
         # -------------------------------------------------------------
-        orb_high: Optional[float] = None
-        orb_low: Optional[float] = None
+        orb_high: float | None = None
+        orb_low: float | None = None
         is_opening_period = False
 
         if "timestamp" in candle_df.columns and not candle_df.empty:
@@ -164,7 +163,7 @@ class InstitutionalQuantEngine:
                 "confluence_score": 0,
                 "direction": "NEUTRAL",
                 "reason": "Opening Range Formation: 09:15 - 09:30 IST noise filter active. Awaiting 15-min range settlement to prevent morning gap-traps.",
-                "indicators": {"close": close, "orb_high": orb_high, "orb_low": orb_low}
+                "indicators": {"close": close, "orb_high": orb_high, "orb_low": orb_low},
             }
 
         # CPR & Floor Pivots
@@ -189,7 +188,7 @@ class InstitutionalQuantEngine:
         # -------------------------------------------------------------
         bullish_score = 0
         bearish_score = 0
-        reasons: List[str] = []
+        reasons: list[str] = []
 
         # 0. 15-Minute ORB Breakout Check
         if orb_high is not None and orb_low is not None:
@@ -200,7 +199,9 @@ class InstitutionalQuantEngine:
                 bearish_score += 15
                 reasons.append(f"Price broke below 15-min Opening Range Low (₹{orb_low:.2f})")
             else:
-                reasons.append(f"Price trading within 15-min Opening Range (₹{orb_low:.2f} - ₹{orb_high:.2f})")
+                reasons.append(
+                    f"Price trading within 15-min Opening Range (₹{orb_low:.2f} - ₹{orb_high:.2f})"
+                )
 
         # 1. EMA Ribbon Alignment
         if close > ema_9 > ema_21 > ema_50:
@@ -297,10 +298,14 @@ class InstitutionalQuantEngine:
             if last_vol > avg_vol * 1.25 and avg_vol > 0:
                 if bullish_score > bearish_score:
                     bullish_score += 15
-                    reasons.append(f"Institutional Volume Surge confirmed ({last_vol/avg_vol:.1f}x of 20-bar avg)")
+                    reasons.append(
+                        f"Institutional Volume Surge confirmed ({last_vol / avg_vol:.1f}x of 20-bar avg)"
+                    )
                 else:
                     bearish_score += 15
-                    reasons.append(f"Institutional Volume Selling Surge confirmed ({last_vol/avg_vol:.1f}x of 20-bar avg)")
+                    reasons.append(
+                        f"Institutional Volume Selling Surge confirmed ({last_vol / avg_vol:.1f}x of 20-bar avg)"
+                    )
 
         # -------------------------------------------------------------
         # Decision Synthesis & Risk-Reward Parameterization
@@ -333,18 +338,22 @@ class InstitutionalQuantEngine:
                     "supertrend": round(st_val, 2),
                     "supertrend_direction": "BULLISH" if st_dir == 1 else "BEARISH",
                     "cpr": cpr,
-                    "pivots": pivots
+                    "pivots": pivots,
                 },
-                "technical_rationale": " | ".join(reasons)
+                "technical_rationale": " | ".join(reasons),
             }
 
         # Format actionable high-expectancy trade setup
         if is_index:
-            strike, instrument = self.resolve_optimal_strike(symbol, close, is_bullish)
+            _strike, instrument = self.resolve_optimal_strike(symbol, close, is_bullish)
             signal_type = "BUY_CALL" if is_bullish else "BUY_PUT"
             opt_quote = quote.get("call_option" if is_bullish else "put_option")
-            entry_price = float(opt_quote["ltp"]) if opt_quote and opt_quote.get("ltp") else round(max(30.0, atr * 1.5), 2)
-            
+            entry_price = (
+                float(opt_quote["ltp"])
+                if opt_quote and opt_quote.get("ltp")
+                else round(max(30.0, atr * 1.5), 2)
+            )
+
             # Ultra-protective Risk Management for Options: tight 10% stop-loss, asymmetric 1:2.0 and 1:3.0 targets
             risk_points = round(max(8.0, entry_price * 0.10), 2)
             stop_loss = round(max(2.0, entry_price - risk_points), 2)
@@ -356,11 +365,21 @@ class InstitutionalQuantEngine:
             entry_price = round(close, 2)
             risk_points = round(max(1.5, atr * 1.0), 2)
             stop_loss = round(entry_price - risk_points if is_bullish else entry_price + risk_points, 2)
-            target_1 = round(entry_price + (risk_points * 2.0) if is_bullish else entry_price - (risk_points * 2.0), 2)
-            target_2 = round(entry_price + (risk_points * 3.2) if is_bullish else entry_price - (risk_points * 3.2), 2)
+            target_1 = round(
+                entry_price + (risk_points * 2.0) if is_bullish else entry_price - (risk_points * 2.0), 2
+            )
+            target_2 = round(
+                entry_price + (risk_points * 3.2) if is_bullish else entry_price - (risk_points * 3.2), 2
+            )
 
-        action_word = "BUY CALL" if signal_type == "BUY_CALL" else (
-            "BUY PUT" if signal_type == "BUY_PUT" else ("LONG" if signal_type == "BUY_EQUITY" else "SHORT")
+        action_word = (
+            "BUY CALL"
+            if signal_type == "BUY_CALL"
+            else (
+                "BUY PUT"
+                if signal_type == "BUY_PUT"
+                else ("LONG" if signal_type == "BUY_EQUITY" else "SHORT")
+            )
         )
 
         verbal_pitch = (
@@ -396,11 +415,11 @@ class InstitutionalQuantEngine:
                 "supertrend": round(st_val, 2),
                 "supertrend_direction": "BULLISH" if st_dir == 1 else "BEARISH",
                 "cpr": cpr,
-                "pivots": pivots
-            }
+                "pivots": pivots,
+            },
         }
 
-    def _build_empty_response(self, symbol: str, ltp: float, reason: str) -> Dict[str, Any]:
+    def _build_empty_response(self, symbol: str, ltp: float, reason: str) -> dict[str, Any]:
         """Constructs safe fallback response when data is incomplete."""
         return {
             "symbol": symbol,
@@ -409,7 +428,7 @@ class InstitutionalQuantEngine:
             "confluence_score": 0,
             "direction": "NEUTRAL",
             "reason": reason,
-            "indicators": {"close": ltp}
+            "indicators": {"close": ltp},
         }
 
 

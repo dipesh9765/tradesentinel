@@ -8,12 +8,12 @@ HTTP/WebSocket requests to actual brokerage endpoints.
 """
 
 import datetime
-import uuid
 import logging
-from typing import Dict, List, Optional, Any, Tuple
+import uuid
+from typing import Any
 
-from config import settings
 import database
+from config import settings
 from core.interfaces import BaseOrderExecutor, OrderStatus
 
 logger = logging.getLogger(__name__)
@@ -37,30 +37,25 @@ class PaperExecutionEngine(BaseOrderExecutor):
         - config.settings: Default virtual capital and risk parameters.
     """
 
-    def __init__(self, initial_balance: Optional[float] = None):
+    def __init__(self, initial_balance: float | None = None):
         self._mode = "PAPER"
         self.paper_balance: float = initial_balance or settings.INITIAL_PAPER_CAPITAL
-        self.positions: Dict[str, Dict[str, Any]] = {}
-        self.orders_history: List[Dict[str, Any]] = []
+        self.positions: dict[str, dict[str, Any]] = {}
+        self.orders_history: list[dict[str, Any]] = []
 
     @property
     def mode(self) -> str:
         """Returns 'PAPER' execution mode."""
         return self._mode
 
-    def verify_session(self) -> Dict[str, Any]:
+    def verify_session(self) -> dict[str, Any]:
         """
         Validates the health and readiness of the paper execution environment.
-        
+
         Returns:
             Dict containing valid state and current virtual capital balance.
         """
-        return {
-            "valid": True,
-            "mode": "PAPER",
-            "error": None,
-            "virtual_balance": self.paper_balance
-        }
+        return {"valid": True, "mode": "PAPER", "error": None, "virtual_balance": self.paper_balance}
 
     # -------------------------------------------------------------------------
     # Order Simulation (SRP decomposed)
@@ -70,13 +65,13 @@ class PaperExecutionEngine(BaseOrderExecutor):
         self,
         pos_id: str,
         order_id: str,
-        proposal: Dict[str, Any],
+        proposal: dict[str, Any],
         lot_size: int,
         entry_price: float,
-        timestamp: str
-    ) -> Dict[str, Any]:
+        timestamp: str,
+    ) -> dict[str, Any]:
         """Constructs a simulated position entity and stores it in memory & SQLite."""
-        position: Dict[str, Any] = {
+        position: dict[str, Any] = {
             "position_id": pos_id,
             "proposal_id": proposal.get("proposal_id"),
             "order_id": order_id,
@@ -94,22 +89,17 @@ class PaperExecutionEngine(BaseOrderExecutor):
             "pnl_pct": 0.0,
             "opened_at": timestamp,
             "status": "OPEN",
-            "mode": "PAPER"
+            "mode": "PAPER",
         }
         self.positions[pos_id] = position
         database.save_position(position)
         return position
 
     def _create_order_record(
-        self,
-        order_id: str,
-        proposal: Dict[str, Any],
-        lot_size: int,
-        entry_price: float,
-        timestamp: str
-    ) -> Dict[str, Any]:
+        self, order_id: str, proposal: dict[str, Any], lot_size: int, entry_price: float, timestamp: str
+    ) -> dict[str, Any]:
         """Constructs a simulated order audit log and persists it to SQLite."""
-        order_record: Dict[str, Any] = {
+        order_record: dict[str, Any] = {
             "order_id": order_id,
             "instrument": proposal["instrument"],
             "type": "BUY" if "BUY" in proposal["signal_type"] else "SELL",
@@ -118,13 +108,13 @@ class PaperExecutionEngine(BaseOrderExecutor):
             "status": OrderStatus.EXECUTED,
             "status_message": "Paper Sandbox Simulation (Zero financial risk)",
             "mode": "PAPER",
-            "timestamp": timestamp
+            "timestamp": timestamp,
         }
         self.orders_history.insert(0, order_record)
         database.save_order(order_record, proposal.get("proposal_id"))
         return order_record
 
-    def execute_order(self, proposal: Dict[str, Any], lot_size: int) -> Dict[str, Any]:
+    def execute_order(self, proposal: dict[str, Any], lot_size: int) -> dict[str, Any]:
         """
         Simulates execution of a trade proposal within the paper sandbox.
 
@@ -141,14 +131,10 @@ class PaperExecutionEngine(BaseOrderExecutor):
         now_str = datetime.datetime.now().strftime("%H:%M:%S")
 
         # 1. Create simulated position
-        position = self._create_position_record(
-            pos_id, order_id, proposal, lot_size, entry_price, now_str
-        )
+        position = self._create_position_record(pos_id, order_id, proposal, lot_size, entry_price, now_str)
 
         # 2. Create simulated order log
-        order_record = self._create_order_record(
-            order_id, proposal, lot_size, entry_price, now_str
-        )
+        order_record = self._create_order_record(order_id, proposal, lot_size, entry_price, now_str)
 
         logger.info(
             f"[PAPER ENGINE] Executed {order_record['type']} {lot_size} lot(s) "
@@ -159,7 +145,7 @@ class PaperExecutionEngine(BaseOrderExecutor):
             "order": order_record,
             "position": position,
             "mode": "PAPER",
-            "message": "Order executed in Paper Sandbox (Virtual Simulation)."
+            "message": "Order executed in Paper Sandbox (Virtual Simulation).",
         }
 
     # -------------------------------------------------------------------------
@@ -167,10 +153,8 @@ class PaperExecutionEngine(BaseOrderExecutor):
     # -------------------------------------------------------------------------
 
     def _calculate_realized_pnl(
-        self,
-        position: Dict[str, Any],
-        exit_price: float
-    ) -> Tuple[float, float, int]:
+        self, position: dict[str, Any], exit_price: float
+    ) -> tuple[float, float, int]:
         """Calculates direction-aware realized P&L and return percentage."""
         buy_price = float(position["buy_price"])
         qty = int(position.get("quantity", 1))
@@ -178,17 +162,19 @@ class PaperExecutionEngine(BaseOrderExecutor):
         multiplier = 1.0 if is_long else -1.0
 
         realized_pnl = round((exit_price - buy_price) * qty * multiplier, 2)
-        pnl_pct = round(((exit_price - buy_price) / buy_price) * 100 * multiplier, 2) if buy_price > 0 else 0.0
+        pnl_pct = (
+            round(((exit_price - buy_price) / buy_price) * 100 * multiplier, 2) if buy_price > 0 else 0.0
+        )
         return realized_pnl, pnl_pct, qty
 
     def _persist_closed_position(
         self,
         position_id: str,
-        position: Dict[str, Any],
+        position: dict[str, Any],
         exit_price: float,
         realized_pnl: float,
         pnl_pct: float,
-        reason: str
+        reason: str,
     ) -> None:
         """Updates simulated position fields and commits them to SQLite."""
         position["status"] = "CLOSED"
@@ -204,17 +190,12 @@ class PaperExecutionEngine(BaseOrderExecutor):
             status="CLOSED",
             exit_price=exit_price,
             realized_pnl=realized_pnl,
-            close_reason=reason
+            close_reason=reason,
         )
 
     def _record_offsetting_order(
-        self,
-        position: Dict[str, Any],
-        exit_price: float,
-        quantity: int,
-        realized_pnl: float,
-        reason: str
-    ) -> Dict[str, Any]:
+        self, position: dict[str, Any], exit_price: float, quantity: int, realized_pnl: float, reason: str
+    ) -> dict[str, Any]:
         """Creates an offsetting virtual order record."""
         is_long = "BUY" in position.get("signal_type", "BUY")
         offsetting_order = {
@@ -227,13 +208,13 @@ class PaperExecutionEngine(BaseOrderExecutor):
             "status_message": f"Closed via {reason}",
             "mode": "PAPER",
             "pnl": realized_pnl,
-            "timestamp": datetime.datetime.now().strftime("%H:%M:%S")
+            "timestamp": datetime.datetime.now().strftime("%H:%M:%S"),
         }
         self.orders_history.insert(0, offsetting_order)
         database.save_order(offsetting_order, position.get("proposal_id"))
         return offsetting_order
 
-    def close_position(self, position_id: str, reason: str = "MANUAL_EXIT") -> Dict[str, Any]:
+    def close_position(self, position_id: str, reason: str = "MANUAL_EXIT") -> dict[str, Any]:
         """
         Closes an active simulated position and calculates final realized P&L.
 
@@ -265,21 +246,23 @@ class PaperExecutionEngine(BaseOrderExecutor):
         # 5. Evict from active positions pool
         del self.positions[position_id]
 
-        logger.info(f"[PAPER ENGINE] Closed position {position_id} ({reason}) with realized P&L: ₹{realized_pnl:+}")
+        logger.info(
+            f"[PAPER ENGINE] Closed position {position_id} ({reason}) with realized P&L: ₹{realized_pnl:+}"
+        )
 
         return {
             "message": "Position closed successfully",
             "position": position,
             "realized_pnl": realized_pnl,
             "exit_price": exit_price,
-            "reason": reason
+            "reason": reason,
         }
 
     # -------------------------------------------------------------------------
     # Mark-to-Market & Automated Triggers (SRP decomposed)
     # -------------------------------------------------------------------------
 
-    def _check_sl_tp_triggers(self, position: Dict[str, Any], current_price: float) -> Optional[str]:
+    def _check_sl_tp_triggers(self, position: dict[str, Any], current_price: float) -> str | None:
         """Evaluates whether current price has triggered Stop-Loss or Take-Profit thresholds."""
         is_long = "BUY" in position.get("signal_type", "BUY")
         sl = float(position["stop_loss"])
@@ -298,7 +281,7 @@ class PaperExecutionEngine(BaseOrderExecutor):
 
         return None
 
-    def update_pnl(self, live_prices: Dict[str, float]) -> List[Dict[str, Any]]:
+    def update_pnl(self, live_prices: dict[str, float]) -> list[dict[str, Any]]:
         """
         Updates unrealized P&L for all active paper positions based on live prices.
 
@@ -308,7 +291,7 @@ class PaperExecutionEngine(BaseOrderExecutor):
         Returns:
             List of closed positions if any hit SL or Target.
         """
-        closed_positions: List[Dict[str, Any]] = []
+        closed_positions: list[dict[str, Any]] = []
 
         for pos_id, pos in list(self.positions.items()):
             symbol = pos["symbol"]
@@ -323,7 +306,11 @@ class PaperExecutionEngine(BaseOrderExecutor):
             multiplier = 1.0 if is_long else -1.0
 
             unrealized = round((current_price - buy_price) * qty * multiplier, 2)
-            pct = round(((current_price - buy_price) / buy_price) * 100 * multiplier, 2) if buy_price > 0 else 0.0
+            pct = (
+                round(((current_price - buy_price) / buy_price) * 100 * multiplier, 2)
+                if buy_price > 0
+                else 0.0
+            )
             pos["unrealized_pnl"] = unrealized
             pos["pnl_pct"] = pct
 

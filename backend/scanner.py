@@ -8,20 +8,24 @@ multi-channel notifications and real-time WebSocket alerts to the user without m
 """
 
 import asyncio
+import contextlib
 import datetime
 import logging
-from typing import Dict, Any, Optional
+from typing import Any
 
-from config import settings, get_watchlist_symbols
+from app.api.v1.endpoints.websocket import active_connections
+from app.core.genConsts import GenConsts
+from config import get_watchlist_symbols
+from kite_executor import kite_executor
 from market_data import market_data_manager
+from notifications import notification_service
 from quant_strategy import quant_engine
 from trade_analyzer import trade_analyzer
-from kite_executor import kite_executor
-from notifications import notification_service
-from app.core.genConsts import GenConsts
-from app.api.v1.endpoints.websocket import active_connections
 
 logger = logging.getLogger(__name__)
+
+# Strong references so fire-and-forget notification tasks are not garbage collected mid-flight.
+_background_tasks: set[asyncio.Task] = set()
 
 
 class OpportunityScannerService:
@@ -39,9 +43,9 @@ class OpportunityScannerService:
     def __init__(self, scan_interval_sec: float = 12.0, cooldown_minutes: int = 10):
         self.scan_interval_sec: float = scan_interval_sec
         self.cooldown_minutes: int = cooldown_minutes
-        self.last_alert_times: Dict[str, datetime.datetime] = {}
+        self.last_alert_times: dict[str, datetime.datetime] = {}
         self.is_running: bool = False
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
 
     def is_market_open(self) -> bool:
         """
@@ -71,7 +75,7 @@ class OpportunityScannerService:
         elapsed = (datetime.datetime.now() - last_time).total_seconds() / 60.0
         return elapsed < self.cooldown_minutes
 
-    async def scan_single_symbol(self, symbol: str) -> Optional[Dict[str, Any]]:
+    async def scan_single_symbol(self, symbol: str) -> dict[str, Any] | None:
         """
         Evaluates quantitative setup for a symbol and generates proposal if A+ setup forms.
         """
@@ -96,11 +100,10 @@ class OpportunityScannerService:
         quote = market_data_manager.get_quote(symbol)
         candle_df = market_data_manager.candles_data.get(symbol)
 
-        if candle_df is None or candle_df.empty:
-            # Attempt to fetch candles if Kite is configured
-            if market_data_manager.is_configured():
-                market_data_manager.get_candles(symbol, limit=60)
-                candle_df = market_data_manager.candles_data.get(symbol)
+        # Attempt to fetch candles if Kite is configured
+        if (candle_df is None or candle_df.empty) and market_data_manager.is_configured():
+            market_data_manager.get_candles(symbol, limit=60)
+            candle_df = market_data_manager.candles_data.get(symbol)
 
         if candle_df is None or len(candle_df) < 15 or quote.get("ltp", 0) <= 0:
             return None
@@ -125,7 +128,9 @@ class OpportunityScannerService:
                 hdfc_chg = hdfc_quote.get("change_pct", 0.0) if hdfc_quote else 0.0
                 icici_chg = icici_quote.get("change_pct", 0.0) if icici_quote else 0.0
                 if hdfc_chg < -1.0 and icici_chg < -1.0:
-                    logger.info(f"Bank Nifty Bullish setup filtered: Heavyweights HDFC ({hdfc_chg}%) and ICICI ({icici_chg}%) are negative.")
+                    logger.info(
+                        f"Bank Nifty Bullish setup filtered: Heavyweights HDFC ({hdfc_chg}%) and ICICI ({icici_chg}%) are negative."
+                    )
                     return None
 
         # 4. Generate Full Institutional Setup
@@ -152,16 +157,16 @@ class OpportunityScannerService:
             ws_payload = {
                 "type": GenConsts.WS_EVENT_PROPOSAL_ALERT,
                 "proposal": proposal,
-                "message": f"High Conviction A+ Setup spotted on {symbol} ({confluence_score}% Confluence)!"
+                "message": f"High Conviction A+ Setup spotted on {symbol} ({confluence_score}% Confluence)!",
             }
             for ws in list(active_connections):
-                try:
+                with contextlib.suppress(Exception):
                     await ws.send_json(ws_payload)
-                except Exception:
-                    pass
 
         # 7. Dispatch multi-channel notifications (Browser / Telegram / Discord / Slack)
-        asyncio.create_task(notification_service.notify_trade_proposal(proposal))
+        task = asyncio.create_task(notification_service.notify_trade_proposal(proposal))
+        _background_tasks.add(task)
+        task.add_done_callback(_background_tasks.discard)
 
         return proposal
 

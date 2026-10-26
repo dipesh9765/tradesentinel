@@ -1,10 +1,11 @@
-import pytest
 from fastapi.testclient import TestClient
+
 import database
-from security import validate_session_token
 from main import app
+from security import validate_session_token
 
 client = TestClient(app)
+
 
 def test_auth_lockdown_and_setup_flow():
     # 1. Clean DB auth
@@ -68,8 +69,8 @@ def test_auth_lockdown_and_setup_flow():
         json={
             "kite_api_key": "my-kite-api-key-999",
             "kite_api_secret": "my-kite-secret-888",
-            "gemini_api_key": "my-gemini-ai-key-777"
-        }
+            "gemini_api_key": "my-gemini-ai-key-777",
+        },
     )
     assert update_resp.status_code == 200
 

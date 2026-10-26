@@ -4,8 +4,7 @@ Eliminates hardcoded prompts in application logic.
 All dynamic placeholders follow the format '%KEY%' and are replaced at runtime.
 """
 
-from typing import Dict, Any
-
+from typing import Any
 
 # 1. Primary Intraday Quantitative Trading Setup Prompt (Multi-Factor Institutional)
 INTRADAY_MARKET_SETUP_PROMPT = """
@@ -52,13 +51,13 @@ Provide concise risk warnings and institutional bias for intraday scalping.
 def render_prompt(template: str, **replacements: Any) -> str:
     """
     Renders a prompt template by dynamically substituting '%KEY%' placeholders with runtime values.
-    
+
     Supports case-insensitive placeholder keys (e.g. symbol='NIFTY' replaces both '%SYMBOL%' and '%symbol%').
-    
+
     Args:
         template: The prompt string containing '%KEY%' placeholders.
         **replacements: Keyword arguments representing key-value pairs to replace.
-        
+
     Returns:
         Rendered prompt string ready to be passed to the Gemini model.
     """
@@ -71,8 +70,10 @@ def render_prompt(template: str, **replacements: Any) -> str:
 
 class GenPrompts:
     """Namespace container for all system prompt templates and renderer."""
+
     INTRADAY_MARKET_SETUP = INTRADAY_MARKET_SETUP_PROMPT
     MARKET_SENTIMENT_ANALYSIS = MARKET_SENTIMENT_ANALYSIS_PROMPT
+    TRADE_EXPLANATION = ""  # bound below, once TRADE_EXPLANATION_PROMPT is defined
     render = staticmethod(render_prompt)
 
 

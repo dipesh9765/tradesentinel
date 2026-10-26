@@ -29,11 +29,11 @@ import logging
 import math
 import sys
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pandas as pd
 
-from config import is_index_symbol, get_instrument_lot_sizes
+from config import get_instrument_lot_sizes, is_index_symbol
 from exit_rules import check_exit_triggers
 from quant_strategy import quant_engine
 from technical_indicators import enrich_candle_indicators
@@ -48,6 +48,7 @@ MIN_TRADES_FOR_CONCLUSION = 30
 @dataclass
 class CostModel:
     """Indian intraday cost structure (approximate current NSE / Zerodha rates)."""
+
     is_option: bool
     slippage_pct: float
     flat_brokerage: float = 20.0
@@ -58,7 +59,9 @@ class CostModel:
             stt = 0.001 * sell_value
             exchange = 0.0003503 * (buy_value + sell_value)
         else:
-            brokerage = min(self.flat_brokerage, 0.0003 * buy_value) + min(self.flat_brokerage, 0.0003 * sell_value)
+            brokerage = min(self.flat_brokerage, 0.0003 * buy_value) + min(
+                self.flat_brokerage, 0.0003 * sell_value
+            )
             stt = 0.00025 * sell_value
             exchange = 0.0000297 * (buy_value + sell_value)
         sebi = 0.000001 * (buy_value + sell_value)
@@ -73,7 +76,8 @@ def default_costs(is_option: bool) -> CostModel:
 
 # --------------------------------------------------------------------------- metrics
 
-def summarize(trades: List[Dict[str, Any]]) -> Dict[str, Any]:
+
+def summarize(trades: list[dict[str, Any]]) -> dict[str, Any]:
     n = len(trades)
     if n == 0:
         return {"trades": 0}
@@ -109,27 +113,44 @@ def summarize(trades: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
-def walk_forward(trades: List[Dict[str, Any]], folds: int = 3) -> List[Dict[str, Any]]:
+def walk_forward(trades: list[dict[str, Any]], folds: int = 3) -> list[dict[str, Any]]:
     """Splits trades chronologically into equal folds and summarises each."""
     if len(trades) < folds:
         return []
     size = math.ceil(len(trades) / folds)
     out = []
     for k in range(folds):
-        chunk = trades[k * size:(k + 1) * size]
+        chunk = trades[k * size : (k + 1) * size]
         if chunk:
-            out.append({"fold": k + 1, "from": chunk[0]["entry_time"], "to": chunk[-1]["exit_time"], **summarize(chunk)})
+            out.append(
+                {
+                    "fold": k + 1,
+                    "from": chunk[0]["entry_time"],
+                    "to": chunk[-1]["exit_time"],
+                    **summarize(chunk),
+                }
+            )
     return out
 
 
 # --------------------------------------------------------------------------- simulation
 
+
 def _hhmm(ts: pd.Timestamp) -> datetime.time:
     return ts.to_pydatetime().time()
 
 
-def _simulate_trade(df: pd.DataFrame, ts: pd.Series, i: int, signal: Dict[str, Any], symbol: str,
-                    qty: int, costs: CostModel, delta: float, square_off: datetime.time) -> Dict[str, Any]:
+def _simulate_trade(
+    df: pd.DataFrame,
+    ts: pd.Series,
+    i: int,
+    signal: dict[str, Any],
+    symbol: str,
+    qty: int,
+    costs: CostModel,
+    delta: float,
+    square_off: datetime.time,
+) -> dict[str, Any]:
     """Enters at bar i+1's open and walks forward bar by bar until an exit rule fires."""
     j = i + 1
     day = ts[j].date()
@@ -167,8 +188,8 @@ def _simulate_trade(df: pd.DataFrame, ts: pd.Series, i: int, signal: Dict[str, A
             exit_price, reason, exit_idx = price_of(float(df["open"].iloc[k])), "EOD_SQUAREOFF", k
             break
 
-        o, h, l, c = (float(df[col].iloc[k]) for col in ("open", "high", "low", "close"))
-        po, ph, pl, pc = price_of(o), price_of(h), price_of(l), price_of(c)
+        o, h, low_, c = (float(df[col].iloc[k]) for col in ("open", "high", "low", "close"))
+        po, ph, pl, pc = price_of(o), price_of(h), price_of(low_), price_of(c)
         lo, hi = min(ph, pl), max(ph, pl)
         path = [po, lo, hi, pc] if is_long else [po, hi, lo, pc]  # adverse extreme first
         for idx, p in enumerate(path):
@@ -188,6 +209,7 @@ def _simulate_trade(df: pd.DataFrame, ts: pd.Series, i: int, signal: Dict[str, A
     else:
         exit_price, reason, exit_idx = price_of(float(df["close"].iloc[-1])), "END_OF_DATA", len(df) - 1
 
+    assert exit_price is not None  # loop either sets it or falls through to END_OF_DATA
     slip = costs.slippage_pct / 100.0
     entry_adj = raw_fill * (1 + slip) if is_long else raw_fill * (1 - slip)
     exit_adj = exit_price * (1 - slip) if is_long else exit_price * (1 + slip)
@@ -221,8 +243,8 @@ def run_backtest(
     df: pd.DataFrame,
     symbol: str,
     lots: int = 1,
-    lot_size: Optional[int] = None,
-    costs: Optional[CostModel] = None,
+    lot_size: int | None = None,
+    costs: CostModel | None = None,
     option_delta: float = 0.55,
     last_entry: datetime.time = datetime.time(14, 45),
     square_off: datetime.time = datetime.time(15, 15),
@@ -231,7 +253,7 @@ def run_backtest(
     loss_pause_minutes: int = 60,
     loss_lockout_minutes: int = 45,
     folds: int = 3,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Runs the full strategy over `df` (5-minute OHLCV) and returns trades, metrics and warnings."""
     df = df.copy()
     if "timestamp" not in df.columns:
@@ -254,11 +276,11 @@ def run_backtest(
     qty = max(1, lots * lot_size)
     costs = costs or default_costs(is_option=is_index)
 
-    trades: List[Dict[str, Any]] = []
-    day_trades: Dict[datetime.date, int] = {}
-    day_streak: Dict[datetime.date, int] = {}
-    last_loss_time: Optional[pd.Timestamp] = None
-    pause_until: Optional[pd.Timestamp] = None
+    trades: list[dict[str, Any]] = []
+    day_trades: dict[datetime.date, int] = {}
+    day_streak: dict[datetime.date, int] = {}
+    last_loss_time: pd.Timestamp | None = None
+    pause_until: pd.Timestamp | None = None
 
     i = WARMUP_BARS
     while i < len(df) - 1:
@@ -278,7 +300,7 @@ def run_backtest(
             continue
 
         signal = quant_engine.evaluate_quantitative_setup(
-            symbol, {"ltp": float(df["close"].iloc[i])}, df.iloc[:i + 1], as_of=t.to_pydatetime()
+            symbol, {"ltp": float(df["close"].iloc[i])}, df.iloc[: i + 1], as_of=t.to_pydatetime()
         )
         if not signal.get("actionable") or validate_signal(signal):
             i += 1
@@ -314,7 +336,9 @@ def run_backtest(
             "intrabar_order": "adverse price first",
             "slippage_pct_per_side": costs.slippage_pct,
             "quantity": qty,
-            "instrument_model": f"delta {option_delta} option proxy (approximate)" if is_index else "underlying equity",
+            "instrument_model": f"delta {option_delta} option proxy (approximate)"
+            if is_index
+            else "underlying equity",
             "squareoff": square_off.strftime("%H:%M"),
             "max_trades_per_day": max_trades_per_day,
         },
@@ -323,23 +347,30 @@ def run_backtest(
     return result
 
 
-def _warnings(summary: Dict[str, Any], result_is_option: bool) -> List[str]:
-    out: List[str] = []
+def _warnings(summary: dict[str, Any], result_is_option: bool) -> list[str]:
+    out: list[str] = []
     n = summary.get("trades", 0)
     if n == 0:
-        return ["No trades were generated. Either the filters never aligned in this period or there is too little data."]
+        return [
+            "No trades were generated. Either the filters never aligned in this period or there is too little data."
+        ]
     if n < MIN_TRADES_FOR_CONCLUSION:
-        out.append(f"Only {n} trades: too few to conclude anything (need {MIN_TRADES_FOR_CONCLUSION}+, ideally several hundred). Results can be pure luck.")
+        out.append(
+            f"Only {n} trades: too few to conclude anything (need {MIN_TRADES_FOR_CONCLUSION}+, ideally several hundred). Results can be pure luck."
+        )
     if summary["net_pnl"] <= 0:
         out.append("The strategy lost money after costs in this period. Do not trade it live as-is.")
     elif summary.get("profit_factor") is not None and summary["profit_factor"] < 1.3:
         out.append("Profit factor below 1.3 leaves little margin for real-world slippage and bad fills.")
     if result_is_option:
-        out.append("Option results use a delta proxy on the underlying (no theta, gamma or IV): treat as approximate.")
+        out.append(
+            "Option results use a delta proxy on the underlying (no theta, gamma or IV): treat as approximate."
+        )
     return out
 
 
 # --------------------------------------------------------------------------- CLI
+
 
 def load_csv(path: str) -> pd.DataFrame:
     df = pd.read_csv(path)
@@ -347,12 +378,14 @@ def load_csv(path: str) -> pd.DataFrame:
     return df
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Backtest the TradeSentinel rules engine on 5-minute candles.")
     ap.add_argument("--csv", required=True, help="CSV with timestamp/date, open, high, low, close, volume")
     ap.add_argument("--symbol", required=True, help='Symbol as in instruments.json, e.g. "BANK NIFTY"')
     ap.add_argument("--lots", type=int, default=1)
-    ap.add_argument("--lot-size", type=int, default=None, help="Override units per lot (or shares for equities)")
+    ap.add_argument(
+        "--lot-size", type=int, default=None, help="Override units per lot (or shares for equities)"
+    )
     ap.add_argument("--out", help="Write the full JSON result here")
     args = ap.parse_args(argv)
 

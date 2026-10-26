@@ -9,23 +9,25 @@ rules rejected, and it cannot move any price level.
 Every signal also passes through trade_validation before it leaves this module.
 """
 
-import re
 import logging
-from typing import Dict, Any, Optional
+import re
+from typing import Any
 
 import pandas as pd
 
 import ai_providers
-from prompts import render_prompt, TRADE_EXPLANATION_PROMPT
 from core.interfaces import BaseTradeAnalyzer
+from prompts import TRADE_EXPLANATION_PROMPT, render_prompt
 from quant_strategy import quant_engine
 from trade_validation import validate_signal
 
 logger = logging.getLogger(__name__)
 
 ACTION_WORDS = {
-    "BUY_CALL": "BUY CALL", "BUY_PUT": "BUY PUT",
-    "BUY_EQUITY": "LONG", "SHORT_EQUITY": "SHORT",
+    "BUY_CALL": "BUY CALL",
+    "BUY_PUT": "BUY PUT",
+    "BUY_EQUITY": "LONG",
+    "SHORT_EQUITY": "SHORT",
 }
 
 
@@ -33,7 +35,7 @@ def _numbers_in(text: str) -> list:
     return [float(n.replace(",", "")) for n in re.findall(r"\d[\d,]*\.?\d*", text or "")]
 
 
-def _pitch_matches_levels(pitch: str, signal: Dict[str, Any]) -> bool:
+def _pitch_matches_levels(pitch: str, signal: dict[str, Any]) -> bool:
     """True only if the spoken pitch quotes the real entry and stop-loss."""
     nums = _numbers_in(pitch)
     for level in (signal["entry_price"], signal["stop_loss"]):
@@ -77,11 +79,8 @@ class TradeAnalyzer(BaseTradeAnalyzer):
     # ------------------------------------------------------------------ analysis
 
     def analyze_market_setup(
-        self,
-        symbol: str,
-        quote: Dict[str, Any],
-        candle_df: Optional[pd.DataFrame]
-    ) -> Dict[str, Any]:
+        self, symbol: str, quote: dict[str, Any], candle_df: pd.DataFrame | None
+    ) -> dict[str, Any]:
         """
         Returns an actionable signal dict (actionable=True) or a NO_TRADE dict
         (actionable=False). Callers must check the flag before creating a proposal.
@@ -119,7 +118,9 @@ class TradeAnalyzer(BaseTradeAnalyzer):
             self._apply_ai_explanation(signal, quote, quant)
         return signal
 
-    def _apply_ai_explanation(self, signal: Dict[str, Any], quote: Dict[str, Any], quant: Dict[str, Any]) -> None:
+    def _apply_ai_explanation(
+        self, signal: dict[str, Any], quote: dict[str, Any], quant: dict[str, Any]
+    ) -> None:
         """Replaces pitch/rationale text with the LLM's explanation. Never touches price levels."""
         provider = ai_providers.get_active_provider()
         model = ai_providers.get_model(provider)
@@ -154,7 +155,7 @@ class TradeAnalyzer(BaseTradeAnalyzer):
         signal["source"] = f"{ai_providers.PROVIDERS[provider]['label']} (explanation only)"
 
     @staticmethod
-    def _no_trade(symbol: str, reason: str, quant: Dict[str, Any]) -> Dict[str, Any]:
+    def _no_trade(symbol: str, reason: str, quant: dict[str, Any]) -> dict[str, Any]:
         return {
             "symbol": symbol,
             "actionable": False,

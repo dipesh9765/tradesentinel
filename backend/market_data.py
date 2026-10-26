@@ -9,31 +9,23 @@ technical indicators, and enforces zero-dummy data integrity.
 
 import datetime
 import logging
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any
+
 import numpy as np
 import pandas as pd
 
+from config import get_instrument_lot_sizes, get_kite_instrument_map, get_watchlist_symbols, settings
 from core.interfaces import BaseMarketDataProvider
-from technical_indicators import enrich_candle_indicators
 from kite_executor import kite_executor
-from server_logger import (
-    log_outgoing_request,
-    log_outgoing_response,
-    log_outgoing_error
-)
+from server_logger import log_outgoing_error, log_outgoing_request, log_outgoing_response
+from technical_indicators import enrich_candle_indicators
 
 logger = logging.getLogger(__name__)
 
-from config import (
-    settings,
-    get_kite_instrument_map,
-    get_instrument_lot_sizes,
-    get_watchlist_symbols
-)
 
 # Dynamically loaded from backend/instruments.json for seamless maintainability
-KITE_INSTRUMENT_MAP: Dict[str, str] = get_kite_instrument_map()
-INSTRUMENT_LOT_SIZES: Dict[str, int] = get_instrument_lot_sizes()
+KITE_INSTRUMENT_MAP: dict[str, str] = get_kite_instrument_map()
+INSTRUMENT_LOT_SIZES: dict[str, int] = get_instrument_lot_sizes()
 
 
 class MarketDataManager(BaseMarketDataProvider):
@@ -57,10 +49,10 @@ class MarketDataManager(BaseMarketDataProvider):
     """
 
     def __init__(self):
-        self.live_prices: Dict[str, float] = {}
-        self.cached_quotes: Dict[str, Dict[str, Any]] = {}
-        self.candles_data: Dict[str, pd.DataFrame] = {}
-        self.last_quote_time: Optional[datetime.datetime] = None
+        self.live_prices: dict[str, float] = {}
+        self.cached_quotes: dict[str, dict[str, Any]] = {}
+        self.candles_data: dict[str, pd.DataFrame] = {}
+        self.last_quote_time: datetime.datetime | None = None
         self.is_live: bool = False
         self.status_message: str = "Awaiting Zerodha Kite Connect configuration and authentication."
 
@@ -75,7 +67,7 @@ class MarketDataManager(BaseMarketDataProvider):
     def is_configured(self) -> bool:
         """
         Returns True if Kite is authenticated and ready to fetch authentic market data.
-        
+
         Returns:
             bool: True if valid Kite session exists, False otherwise.
         """
@@ -86,11 +78,7 @@ class MarketDataManager(BaseMarketDataProvider):
     # -------------------------------------------------------------------------
 
     def _parse_single_quote(
-        self,
-        symbol: str,
-        kite_key: str,
-        raw_quotes: Dict[str, Any],
-        now_str: str
+        self, symbol: str, kite_key: str, raw_quotes: dict[str, Any], now_str: str
     ) -> None:
         """Parses and caches an individual instrument quote from Kite payload."""
         if kite_key not in raw_quotes:
@@ -116,15 +104,15 @@ class MarketDataManager(BaseMarketDataProvider):
             "low": ohlc.get("low", ltp),
             "open": ohlc.get("open", ltp),
             "configured": True,
-            "timestamp": now_str
+            "timestamp": now_str,
         }
 
     def refresh_live_quotes(self) -> bool:
         """
         Fetches authentic live market quotes from Zerodha Kite Connect API.
-        
+
         Strict data integrity: No synthetic or dummy data is ever fabricated.
-        
+
         Returns:
             bool: True if quotes were successfully fetched and cached, False otherwise.
         """
@@ -182,16 +170,16 @@ class MarketDataManager(BaseMarketDataProvider):
             logger.error(f"Failed to fetch live quotes from Kite: {e}")
             log_outgoing_error("Zerodha Kite", "quote", e, 0.0)
             self.is_live = False
-            self.status_message = f"Kite error: {str(e)}"
+            self.status_message = f"Kite error: {e!s}"
             return False
 
-    def get_quote(self, symbol: str) -> Dict[str, Any]:
+    def get_quote(self, symbol: str) -> dict[str, Any]:
         """
         Returns cached market quote for an underlying symbol, or awaiting-configuration status.
-        
+
         Args:
             symbol: Underlying instrument ticker (e.g. 'NIFTY 50').
-            
+
         Returns:
             Dictionary containing LTP, net change, lot size, and provider state.
         """
@@ -207,26 +195,26 @@ class MarketDataManager(BaseMarketDataProvider):
             "configured": self.is_configured(),
             "status": "CONFIG_REQUIRED" if not self.is_configured() else "FETCHING",
             "message": self.status_message,
-            "timestamp": datetime.datetime.now().strftime("%H:%M:%S")
+            "timestamp": datetime.datetime.now().strftime("%H:%M:%S"),
         }
 
-    def get_all_quotes(self) -> List[Dict[str, Any]]:
+    def get_all_quotes(self) -> list[dict[str, Any]]:
         """
         Returns latest quotes for all watched instruments.
-        
+
         Returns:
             List of quote dictionaries.
         """
-        return [self.get_quote(s) for s in KITE_INSTRUMENT_MAP.keys()]
+        return [self.get_quote(s) for s in KITE_INSTRUMENT_MAP]
 
-    def get_candles(self, symbol: str, limit: int = 60) -> List[Dict[str, Any]]:
+    def get_candles(self, symbol: str, interval: str = "5minute", limit: int = 60) -> list[dict[str, Any]]:
         """
         Convenience method returning candlestick bar records.
-        
+
         Args:
             symbol: Underlying instrument ticker.
             limit: Maximum count of recent bars to return.
-            
+
         Returns:
             List of candle dictionaries enriched with technical indicators.
         """
@@ -237,14 +225,14 @@ class MarketDataManager(BaseMarketDataProvider):
     # Candlestick Retrieval & Enrichment (SRP decomposed)
     # -------------------------------------------------------------------------
 
-    def _check_kite_session_prerequisites(self) -> Optional[Dict[str, Any]]:
+    def _check_kite_session_prerequisites(self) -> dict[str, Any] | None:
         """Checks whether Kite credentials, token, and session are properly configured."""
         if not kite_executor.api_key:
             return {
                 "candles": [],
                 "status": "KITE_SESSION_NOT_INITIALIZED",
                 "message": "Zerodha Kite API credentials not configured.",
-                "error_detail": "Please add your Kite API Key and Secret in Settings."
+                "error_detail": "Please add your Kite API Key and Secret in Settings.",
             }
 
         if not kite_executor.access_token:
@@ -252,7 +240,7 @@ class MarketDataManager(BaseMarketDataProvider):
                 "candles": [],
                 "status": "KITE_SESSION_NOT_INITIALIZED",
                 "message": "Zerodha Kite daily session is not initialized.",
-                "error_detail": "Please click 'Authenticate Kite Session' in Settings to log in."
+                "error_detail": "Please click 'Authenticate Kite Session' in Settings to log in.",
             }
 
         if not self.is_configured():
@@ -260,12 +248,12 @@ class MarketDataManager(BaseMarketDataProvider):
                 "candles": [],
                 "status": "KITE_SESSION_NOT_INITIALIZED",
                 "message": "Zerodha Kite session is inactive or security vault is locked.",
-                "error_detail": "Please log in with master password and ensure Kite daily session is active."
+                "error_detail": "Please log in with master password and ensure Kite daily session is active.",
             }
 
         return None
 
-    def _resolve_instrument_token(self, symbol: str) -> Optional[int]:
+    def _resolve_instrument_token(self, symbol: str) -> int | None:
         """Resolves Kite instrument token from cached quotes, refreshing if necessary."""
         quote = self.cached_quotes.get(symbol)
         instrument_token = quote.get("instrument_token") if quote else None
@@ -278,20 +266,15 @@ class MarketDataManager(BaseMarketDataProvider):
         return instrument_token
 
     def _fetch_raw_kite_candles(
-        self,
-        symbol: str,
-        instrument_token: int
-    ) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
+        self, symbol: str, instrument_token: int
+    ) -> tuple[pd.DataFrame | None, str | None]:
         """Fetches 5-minute historical candle bars from Zerodha Kite Connect."""
         try:
             kite_executor.verify_outgoing_kite_request()
             now = datetime.datetime.now()
             from_date = now - datetime.timedelta(days=5)
             candles_raw = kite_executor.kite_client.historical_data(
-                instrument_token=instrument_token,
-                from_date=from_date,
-                to_date=now,
-                interval="5minute"
+                instrument_token=instrument_token, from_date=from_date, to_date=now, interval="5minute"
             )
 
             if candles_raw:
@@ -310,8 +293,9 @@ class MarketDataManager(BaseMarketDataProvider):
             log_outgoing_error("Zerodha Kite", "historical_data", e, 0.0)
             return None, err_str
 
-    def _format_candle_records(self, df: pd.DataFrame, limit: int) -> List[Dict[str, Any]]:
+    def _format_candle_records(self, df: pd.DataFrame, limit: int) -> list[dict[str, Any]]:
         """Extracts tail slice from DataFrame and formats into JSON-serializable records."""
+
         def _safe_float(val: Any, fallback: float = 0.0) -> float:
             if val is None or pd.isna(val) or np.isnan(val) or np.isinf(val):
                 return fallback
@@ -321,18 +305,20 @@ class MarketDataManager(BaseMarketDataProvider):
         records = []
         for _, row in tail.iterrows():
             close_price = _safe_float(row.get("close"), 0.0)
-            records.append({
-                "time": row.get("timestamp", str(row.get("date", ""))),
-                "open": _safe_float(row.get("open"), close_price),
-                "high": _safe_float(row.get("high"), close_price),
-                "low": _safe_float(row.get("low"), close_price),
-                "close": close_price,
-                "volume": int(row.get("volume", 0) if not pd.isna(row.get("volume", 0)) else 0),
-                "ema_9": _safe_float(row.get("ema_9"), close_price),
-                "ema_21": _safe_float(row.get("ema_21"), close_price),
-                "vwap": _safe_float(row.get("vwap"), close_price),
-                "rsi": _safe_float(row.get("rsi_14"), 50.0)
-            })
+            records.append(
+                {
+                    "time": row.get("timestamp", str(row.get("date", ""))),
+                    "open": _safe_float(row.get("open"), close_price),
+                    "high": _safe_float(row.get("high"), close_price),
+                    "low": _safe_float(row.get("low"), close_price),
+                    "close": close_price,
+                    "volume": int(row.get("volume", 0) if not pd.isna(row.get("volume", 0)) else 0),
+                    "ema_9": _safe_float(row.get("ema_9"), close_price),
+                    "ema_21": _safe_float(row.get("ema_21"), close_price),
+                    "vwap": _safe_float(row.get("vwap"), close_price),
+                    "rsi": _safe_float(row.get("rsi_14"), 50.0),
+                }
+            )
         return records
 
     def fetch_history_df(self, symbol: str, days: int) -> pd.DataFrame:
@@ -349,7 +335,7 @@ class MarketDataManager(BaseMarketDataProvider):
             instrument_token=token,
             from_date=now - datetime.timedelta(days=days),
             to_date=now,
-            interval="5minute"
+            interval="5minute",
         )
         if not raw:
             raise ValueError(f"Kite returned no candles for {symbol}.")
@@ -357,20 +343,20 @@ class MarketDataManager(BaseMarketDataProvider):
         df["timestamp"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d %H:%M:%S")
         return df
 
-    def get_candles_meta(self, symbol: str, limit: int = 60) -> Dict[str, Any]:
+    def get_candles_meta(self, symbol: str, limit: int = 60) -> dict[str, Any]:
         """
         Fetches authentic historical candlestick data from Zerodha Kite with detailed status metadata.
-        
+
         Decomposed Steps:
             1. Validate Kite prerequisites.
             2. Resolve instrument token.
             3. Fetch raw bars and enrich with indicators.
             4. Format records.
-            
+
         Args:
             symbol: Target symbol.
             limit: Number of bars.
-            
+
         Returns:
             Dictionary with 'candles' list, 'status', 'message', and 'error_detail'.
         """
@@ -394,13 +380,13 @@ class MarketDataManager(BaseMarketDataProvider):
                     "candles": [],
                     "status": "KITE_BROKER_ERROR",
                     "message": f"Zerodha Kite returned an error while fetching {symbol} candles.",
-                    "error_detail": kite_broker_error
+                    "error_detail": kite_broker_error,
                 }
             return {
                 "candles": [],
                 "status": "NO_DATA",
                 "message": f"No candlestick records available from Zerodha Kite for {symbol}.",
-                "error_detail": "Market might be closed or trading is halted for this instrument."
+                "error_detail": "Market might be closed or trading is halted for this instrument.",
             }
 
         # 4. Record formatting
@@ -410,7 +396,7 @@ class MarketDataManager(BaseMarketDataProvider):
             "candles": records,
             "status": "OK",
             "message": f"Successfully loaded {len(records)} candles from Zerodha Kite.",
-            "error_detail": None
+            "error_detail": None,
         }
 
 

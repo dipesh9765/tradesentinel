@@ -9,9 +9,10 @@ clean separation of concerns, high testability, and enterprise extensibility.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Any, Union
-from enum import Enum
 from dataclasses import dataclass
+from enum import Enum
+from typing import Any
+
 import pandas as pd
 
 from genConsts import GenConsts
@@ -19,6 +20,7 @@ from genConsts import GenConsts
 
 class OrderStatus:
     """Standardized lifecycle states for trading orders and proposals."""
+
     PENDING_APPROVAL = GenConsts.STATUS_PENDING_APPROVAL
     APPROVED = "APPROVED"
     EXECUTED = GenConsts.STATUS_EXECUTED
@@ -30,6 +32,7 @@ class OrderStatus:
 
 class TradingMode(str, Enum):
     """Operational mode of the trading engine."""
+
     PAPER = GenConsts.MODE_PAPER
     LIVE = GenConsts.MODE_LIVE
 
@@ -38,7 +41,7 @@ class TradingMode(str, Enum):
 class ExecutionResult:
     """
     Encapsulates the standardized outcome of an order execution attempt.
-    
+
     Attributes:
         success (bool): Whether the broker or simulation engine accepted the order.
         order_id (str): Unique order identifier assigned by broker or simulator.
@@ -51,6 +54,7 @@ class ExecutionResult:
         message (str): Human-readable status message or rejection rationale.
         raw_response (Optional[Dict[str, Any]]): Unaltered broker response payload.
     """
+
     success: bool
     order_id: str
     instrument: str
@@ -60,13 +64,13 @@ class ExecutionResult:
     status: str
     mode: str
     message: str
-    raw_response: Optional[Dict[str, Any]] = None
+    raw_response: dict[str, Any] | None = None
 
 
 class BaseOrderExecutor(ABC):
     """
     Abstract Base Class for order execution engines.
-    
+
     Any broker integration (Zerodha Kite, Angel One, Interactive Brokers) or
     virtual simulation engine must implement this contract to seamlessly plug into
     the TradeSentinel trade orchestrator.
@@ -79,7 +83,7 @@ class BaseOrderExecutor(ABC):
         pass
 
     @abstractmethod
-    def execute_order(self, proposal: Dict[str, Any], lot_size: int) -> Dict[str, Any]:
+    def execute_order(self, proposal: dict[str, Any], lot_size: int) -> dict[str, Any]:
         """
         Executes an approved trade proposal on the target broker or simulator.
 
@@ -99,7 +103,7 @@ class BaseOrderExecutor(ABC):
         pass
 
     @abstractmethod
-    def close_position(self, position_id: str, reason: str = "MANUAL_EXIT") -> Dict[str, Any]:
+    def close_position(self, position_id: str, reason: str = "MANUAL_EXIT") -> dict[str, Any]:
         """
         Closes an open position by routing an offsetting order to the broker/simulator.
 
@@ -113,7 +117,7 @@ class BaseOrderExecutor(ABC):
         pass
 
     @abstractmethod
-    def verify_session(self) -> Dict[str, Any]:
+    def verify_session(self) -> dict[str, Any]:
         """
         Validates authentication and connectivity with the execution backend.
 
@@ -126,7 +130,7 @@ class BaseOrderExecutor(ABC):
 class BaseMarketDataProvider(ABC):
     """
     Abstract Base Class for market data providers.
-    
+
     Decouples market quote ingestion and historical candle streaming from the
     rest of the application. Allows swapping between Zerodha WebSocket/REST,
     Yahoo Finance, AlphaVantage, or mock replayers.
@@ -148,7 +152,7 @@ class BaseMarketDataProvider(ABC):
         pass
 
     @abstractmethod
-    def get_quote(self, symbol: str) -> Dict[str, Any]:
+    def get_quote(self, symbol: str) -> dict[str, Any]:
         """
         Retrieves current cached quote and option chain derivatives for a symbol.
 
@@ -161,7 +165,7 @@ class BaseMarketDataProvider(ABC):
         pass
 
     @abstractmethod
-    def get_candles(self, symbol: str, interval: str = "5minute", limit: int = 50) -> List[Dict[str, Any]]:
+    def get_candles(self, symbol: str, interval: str = "5minute", limit: int = 50) -> list[dict[str, Any]]:
         """
         Retrieves historical OHLCV candle bars enriched with technical indicators.
 
@@ -179,18 +183,15 @@ class BaseMarketDataProvider(ABC):
 class BaseTradeAnalyzer(ABC):
     """
     Abstract Base Class for quantitative trade signal generators.
-    
+
     Enables pluggable analytical models (Gemini Flash LLM, Deep Learning,
     Mean-Reversion, Momentum Cross, or Statistical Arbitrage algorithms).
     """
 
     @abstractmethod
     def analyze_market_setup(
-        self,
-        symbol: str,
-        quote: Dict[str, Any],
-        candle_df: Optional[pd.DataFrame]
-    ) -> Dict[str, Any]:
+        self, symbol: str, quote: dict[str, Any], candle_df: pd.DataFrame | None
+    ) -> dict[str, Any]:
         """
         Analyzes live market metrics, indicator trends, and option chains
         to produce a high-probability trade proposal.
@@ -209,18 +210,18 @@ class BaseTradeAnalyzer(ABC):
 class BaseNotificationDispatcher(ABC):
     """
     Abstract Base Class for multi-channel alerting services.
-    
+
     Dispatches critical trading signals and order lifecycle events across
     chat applications (Telegram, Discord, Slack) and desktop operating systems.
     """
 
     @abstractmethod
-    async def notify_trade_proposal(self, proposal: Dict[str, Any]) -> Dict[str, Any]:
+    async def notify_trade_proposal(self, proposal: dict[str, Any]) -> dict[str, Any]:
         """Dispatches notification when a new AI trade proposal is generated."""
         pass
 
     @abstractmethod
-    async def notify_trade_executed(self, order: Dict[str, Any], position: Dict[str, Any]) -> None:
+    async def notify_trade_executed(self, order: dict[str, Any], position: dict[str, Any]) -> None:
         """Dispatches notification when an order is filled on broker/simulator."""
         pass
 

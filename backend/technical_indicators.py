@@ -17,9 +17,10 @@ Implemented Indicators:
 9. Bollinger Bands (20, 2.0) - Mean-reversion boundaries.
 """
 
-from typing import Tuple, Dict, Any, Optional
-import pandas as pd
+from typing import Any
+
 import numpy as np
+import pandas as pd
 
 
 def calculate_ema(series: pd.Series, period: int) -> pd.Series:
@@ -76,7 +77,7 @@ def calculate_vwap(df: pd.DataFrame) -> pd.Series:
     return vwap.groupby(key).transform(lambda s: s.bfill().ffill()).ffill().bfill()
 
 
-def calculate_vwap_bands(df: pd.DataFrame, num_std: float = 1.5) -> Tuple[pd.Series, pd.Series, pd.Series]:
+def calculate_vwap_bands(df: pd.DataFrame, num_std: float = 1.5) -> tuple[pd.Series, pd.Series, pd.Series]:
     """
     Calculates intraday VWAP along with Upper and Lower standard deviation bands (per session).
     """
@@ -110,10 +111,8 @@ def calculate_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
 
 
 def calculate_bollinger_bands(
-    series: pd.Series,
-    period: int = 20,
-    num_std: float = 2.0
-) -> Tuple[pd.Series, pd.Series, pd.Series]:
+    series: pd.Series, period: int = 20, num_std: float = 2.0
+) -> tuple[pd.Series, pd.Series, pd.Series]:
     """
     Calculates Bollinger Bands (Upper Band, Middle Band / SMA, Lower Band).
     """
@@ -125,10 +124,8 @@ def calculate_bollinger_bands(
 
 
 def calculate_supertrend(
-    df: pd.DataFrame,
-    period: int = 10,
-    multiplier: float = 3.0
-) -> Tuple[pd.Series, pd.Series]:
+    df: pd.DataFrame, period: int = 10, multiplier: float = 3.0
+) -> tuple[pd.Series, pd.Series]:
     """
     Calculates the Supertrend indicator (Value and Trend Direction).
 
@@ -192,10 +189,7 @@ def calculate_supertrend(
     return pd.Series(supertrend, index=df.index), pd.Series(direction, index=df.index)
 
 
-def calculate_adx(
-    df: pd.DataFrame,
-    period: int = 14
-) -> Tuple[pd.Series, pd.Series, pd.Series]:
+def calculate_adx(df: pd.DataFrame, period: int = 14) -> tuple[pd.Series, pd.Series, pd.Series]:
     """
     Calculates the Average Directional Index (ADX) and Directional Indicators (+DI, -DI).
     Used to filter out choppy/sideways markets (ADX < 20) vs strong trends (ADX > 22).
@@ -205,8 +199,6 @@ def calculate_adx(
     """
     high = df["high"]
     low = df["low"]
-    close = df["close"]
-
     tr = calculate_atr(df, period=1)  # 1-period TR
     smoothed_tr = tr.rolling(window=period).sum().replace(0, np.nan)
 
@@ -230,7 +222,7 @@ def calculate_adx(
     return adx, plus_di.fillna(0.0), minus_di.fillna(0.0)
 
 
-def calculate_cpr(high: float, low: float, close: float) -> Dict[str, Any]:
+def calculate_cpr(high: float, low: float, close: float) -> dict[str, Any]:
     """
     Calculates Central Pivot Range (CPR - Pivot, Bottom Central, Top Central)
     and classifies the daily market regime.
@@ -270,11 +262,11 @@ def calculate_cpr(high: float, low: float, close: float) -> Dict[str, Any]:
         "cpr_bottom": round(cpr_bottom, 2),
         "cpr_width": round(cpr_width, 2),
         "cpr_width_pct": round(cpr_width_pct, 3),
-        "cpr_regime": regime
+        "cpr_regime": regime,
     }
 
 
-def calculate_pivot_points(high: float, low: float, close: float) -> Dict[str, float]:
+def calculate_pivot_points(high: float, low: float, close: float) -> dict[str, float]:
     """
     Calculates Classic Floor Pivot Points and support/resistance levels.
     """
@@ -288,7 +280,7 @@ def calculate_pivot_points(high: float, low: float, close: float) -> Dict[str, f
         "r1": round(r1, 2),
         "s1": round(s1, 2),
         "r2": round(r2, 2),
-        "s2": round(s2, 2)
+        "s2": round(s2, 2),
     }
 
 
@@ -310,11 +302,19 @@ def detect_rsi_divergence(df: pd.DataFrame, lookback: int = 14) -> str:
     highest_candle = recent.loc[price_high_idx]
 
     # Bullish Divergence: Price lower or equal, but RSI higher
-    if curr_low <= lowest_candle["low"] and curr_rsi > (lowest_candle.get("rsi_14", 50) + 3.0) and curr_rsi < 45:
+    if (
+        curr_low <= lowest_candle["low"]
+        and curr_rsi > (lowest_candle.get("rsi_14", 50) + 3.0)
+        and curr_rsi < 45
+    ):
         return "BULLISH_DIVERGENCE"
 
     # Bearish Divergence: Price higher or equal, but RSI lower
-    if curr_high >= highest_candle["high"] and curr_rsi < (highest_candle.get("rsi_14", 50) - 3.0) and curr_rsi > 55:
+    if (
+        curr_high >= highest_candle["high"]
+        and curr_rsi < (highest_candle.get("rsi_14", 50) - 3.0)
+        and curr_rsi > 55
+    ):
         return "BEARISH_DIVERGENCE"
 
     return "NONE"

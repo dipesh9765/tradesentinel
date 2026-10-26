@@ -4,15 +4,17 @@ Trading Operations, AI Proposal Evaluation & Order Management Endpoints
 
 import asyncio
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
 import database
 from app.api.deps import require_auth
-from app.models.schemas import ScanRequest, ApproveRequest, RejectRequest, ClosePositionRequest
-from market_data import market_data_manager
+from app.models.schemas import ApproveRequest, ClosePositionRequest, RejectRequest, ScanRequest
+from config import get_watchlist_symbols
 from kite_executor import kite_executor
-from trade_analyzer import trade_analyzer
+from market_data import market_data_manager
 from notifications import notification_service
+from trade_analyzer import trade_analyzer
 
 logger = logging.getLogger(__name__)
 
@@ -29,22 +31,23 @@ async def scan_symbol_endpoint(req: ScanRequest, background_tasks: BackgroundTas
     if not kite_executor.api_key or not kite_executor.access_token:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Zerodha Kite Connect is not configured or daily session is inactive. Please configure in Settings."
+            detail="Zerodha Kite Connect is not configured or daily session is inactive. Please configure in Settings.",
         )
 
-    quote = market_data_manager.get_quote(req.symbol)
-    candle_df = market_data_manager.candles_data.get(req.symbol)
+    symbol = req.symbol or get_watchlist_symbols()[0]
+    quote = market_data_manager.get_quote(symbol)
+    candle_df = market_data_manager.candles_data.get(symbol)
 
-    signal = trade_analyzer.analyze_market_setup(req.symbol, quote, candle_df)
+    signal = trade_analyzer.analyze_market_setup(symbol, quote, candle_df)
     if not signal.get("actionable"):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"No trade: {signal.get('reason', 'no qualifying setup')}"
+            detail=f"No trade: {signal.get('reason', 'no qualifying setup')}",
         )
     try:
         proposal = kite_executor.create_trade_proposal(signal)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"No trade: {e}")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"No trade: {e}") from e
 
     background_tasks.add_task(notification_service.notify_trade_proposal, proposal)
     return {"proposal": proposal, **proposal}
@@ -64,12 +67,12 @@ async def approve_trade(req: ApproveRequest, background_tasks: BackgroundTasks):
             background_tasks.add_task(
                 notification_service.notify_trade_executed,
                 executed_trade["order"],
-                executed_trade["position"]
+                executed_trade["position"],
             )
         return {"success": True, "executed_trade": executed_trade}
     except Exception as e:
         logger.error(f"Trade approval failed: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
 @router.post("/api/trades/reject", dependencies=[Depends(require_auth)])
@@ -80,7 +83,7 @@ def reject_trade(req: RejectRequest):
         rejected = kite_executor.reject_trade(req.proposal_id, req.reason or "User declined")
         return {"success": True, "proposal": rejected}
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
 @router.get("/api/positions", dependencies=[Depends(require_auth)])
@@ -89,7 +92,7 @@ def get_positions():
     """Returns active positions with real-time unrealized P&L."""
     return {
         "positions": list(kite_executor.positions.values()),
-        "summary": kite_executor.get_portfolio_summary()
+        "summary": kite_executor.get_portfolio_summary(),
     }
 
 
@@ -102,7 +105,7 @@ def close_position(req: ClosePositionRequest):
         return {"success": True, "result": res}
     except Exception as e:
         logger.error(f"Manual position close failed: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
 @router.post("/api/trade/reconcile", dependencies=[Depends(require_auth)])
@@ -112,7 +115,7 @@ def reconcile_positions():
         return kite_executor.reconcile_live_positions()
     except Exception as e:
         logger.error(f"Position reconcile failed: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
 @router.get("/api/orders", dependencies=[Depends(require_auth)])

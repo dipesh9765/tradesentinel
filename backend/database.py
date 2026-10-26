@@ -11,17 +11,16 @@ featuring:
 5. Complete backward-compatible procedural facades for all existing consumers.
 """
 
-import sqlite3
-import os
-import json
 import datetime
-from typing import Dict, List, Optional, Any
+import os
+import sqlite3
+from typing import Any
 
-from server_logger import log_config_saved
 from genConsts import GenConsts
+from server_logger import log_config_saved
 
 # In-memory unlocked Fernet encryption key (never persisted to disk in plaintext)
-_unlocked_encryption_key: Optional[bytes] = None
+_unlocked_encryption_key: bytes | None = None
 
 
 def get_db_path() -> str:
@@ -32,7 +31,7 @@ def get_db_path() -> str:
 def get_db_connection() -> sqlite3.Connection:
     """
     Creates and configures an SQLite connection with Row factory and 30s busy timeout.
-    
+
     Returns:
         sqlite3.Connection: Active database connection.
     """
@@ -167,28 +166,41 @@ class TradingRepository:
     """
 
     @staticmethod
-    def save_suggestion(proposal: Dict[str, Any]) -> None:
+    def save_suggestion(proposal: dict[str, Any]) -> None:
         """Persists or updates an AI/quantitative trade proposal."""
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
             now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            cursor.execute("""
+            cursor.execute(
+                """
             INSERT OR REPLACE INTO trade_suggestions (
                 proposal_id, symbol, instrument, signal_type, direction,
                 lot_size, entry_price, stop_loss, target_1, target_2,
                 risk_reward, confidence, verbal_pitch, technical_rationale,
                 status, created_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                proposal["proposal_id"], proposal["symbol"], proposal["instrument"], proposal["signal_type"],
-                proposal["direction"], proposal.get("lot_size", 1), proposal["entry_price"],
-                proposal["stop_loss"], proposal["target_1"], proposal["target_2"],
-                proposal.get("risk_reward", "1:2.0"), proposal.get("confidence", 85),
-                proposal.get("verbal_pitch", ""), proposal.get("technical_rationale", ""),
-                proposal.get("status", "PENDING_APPROVAL"),
-                proposal.get("created_at", now), now
-            ))
+            """,
+                (
+                    proposal["proposal_id"],
+                    proposal["symbol"],
+                    proposal["instrument"],
+                    proposal["signal_type"],
+                    proposal["direction"],
+                    proposal.get("lot_size", 1),
+                    proposal["entry_price"],
+                    proposal["stop_loss"],
+                    proposal["target_1"],
+                    proposal["target_2"],
+                    proposal.get("risk_reward", "1:2.0"),
+                    proposal.get("confidence", 85),
+                    proposal.get("verbal_pitch", ""),
+                    proposal.get("technical_rationale", ""),
+                    proposal.get("status", "PENDING_APPROVAL"),
+                    proposal.get("created_at", now),
+                    now,
+                ),
+            )
             conn.commit()
         finally:
             conn.close()
@@ -200,20 +212,24 @@ class TradingRepository:
         try:
             cursor = conn.cursor()
             now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            cursor.execute("""
+            cursor.execute(
+                """
             UPDATE trade_suggestions SET status = ?, updated_at = ? WHERE proposal_id = ?
-            """, (status, now, proposal_id))
+            """,
+                (status, now, proposal_id),
+            )
             conn.commit()
         finally:
             conn.close()
 
     @staticmethod
-    def save_position(pos: Dict[str, Any]) -> None:
+    def save_position(pos: dict[str, Any]) -> None:
         """Persists or updates an active position record."""
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
             INSERT OR REPLACE INTO positions (
                 position_id, proposal_id, order_id, symbol, instrument,
                 signal_type, quantity, buy_price, current_ltp, stop_loss,
@@ -221,79 +237,114 @@ class TradingRepository:
                 exit_price, status, close_reason, mode, opened_at, closed_at,
                 sl_order_id, exit_order_id, broker_symbol, exchange
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                pos["position_id"], pos.get("proposal_id"), pos.get("order_id"), pos["symbol"],
-                pos["instrument"], pos["signal_type"], pos["quantity"], pos["buy_price"],
-                pos["current_ltp"], pos["stop_loss"], pos["target_1"], pos["target_2"],
-                pos.get("unrealized_pnl", 0.0), pos.get("realized_pnl", 0.0), pos.get("pnl_pct", 0.0),
-                pos.get("exit_price"), pos.get("status", "OPEN"), pos.get("close_reason"),
-                pos.get("mode", "PAPER"), pos.get("opened_at"), pos.get("closed_at"),
-                pos.get("sl_order_id"), pos.get("exit_order_id"), pos.get("broker_symbol"), pos.get("exchange")
-            ))
+            """,
+                (
+                    pos["position_id"],
+                    pos.get("proposal_id"),
+                    pos.get("order_id"),
+                    pos["symbol"],
+                    pos["instrument"],
+                    pos["signal_type"],
+                    pos["quantity"],
+                    pos["buy_price"],
+                    pos["current_ltp"],
+                    pos["stop_loss"],
+                    pos["target_1"],
+                    pos["target_2"],
+                    pos.get("unrealized_pnl", 0.0),
+                    pos.get("realized_pnl", 0.0),
+                    pos.get("pnl_pct", 0.0),
+                    pos.get("exit_price"),
+                    pos.get("status", "OPEN"),
+                    pos.get("close_reason"),
+                    pos.get("mode", "PAPER"),
+                    pos.get("opened_at"),
+                    pos.get("closed_at"),
+                    pos.get("sl_order_id"),
+                    pos.get("exit_order_id"),
+                    pos.get("broker_symbol"),
+                    pos.get("exchange"),
+                ),
+            )
             conn.commit()
         finally:
             conn.close()
 
     @staticmethod
-    def update_position_in_db(pos: Dict[str, Any]) -> None:
+    def update_position_in_db(pos: dict[str, Any]) -> None:
         """Updates live metrics, exit prices, and statuses for a position."""
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
             UPDATE positions SET
                 current_ltp = ?, unrealized_pnl = ?, realized_pnl = ?,
                 pnl_pct = ?, exit_price = ?, status = ?, close_reason = ?, closed_at = ?,
                 stop_loss = ?, sl_order_id = ?, exit_order_id = ?
             WHERE position_id = ?
-            """, (
-                pos["current_ltp"], pos.get("unrealized_pnl", 0.0), pos.get("realized_pnl", 0.0),
-                pos.get("pnl_pct", 0.0), pos.get("exit_price"), pos["status"],
-                pos.get("close_reason"), pos.get("closed_at"),
-                pos["stop_loss"], pos.get("sl_order_id"), pos.get("exit_order_id"), pos["position_id"]
-            ))
+            """,
+                (
+                    pos["current_ltp"],
+                    pos.get("unrealized_pnl", 0.0),
+                    pos.get("realized_pnl", 0.0),
+                    pos.get("pnl_pct", 0.0),
+                    pos.get("exit_price"),
+                    pos["status"],
+                    pos.get("close_reason"),
+                    pos.get("closed_at"),
+                    pos["stop_loss"],
+                    pos.get("sl_order_id"),
+                    pos.get("exit_order_id"),
+                    pos["position_id"],
+                ),
+            )
             conn.commit()
         finally:
             conn.close()
 
     @staticmethod
-    def update_position_pnl(position_id: str, current_ltp: float, unrealized_pnl: float, pnl_pct: float) -> None:
+    def update_position_pnl(
+        position_id: str, current_ltp: float, unrealized_pnl: float, pnl_pct: float
+    ) -> None:
         """Fast-path update for live quote tick recalculations."""
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
             UPDATE positions SET current_ltp = ?, unrealized_pnl = ?, pnl_pct = ? WHERE position_id = ?
-            """, (current_ltp, unrealized_pnl, pnl_pct, position_id))
+            """,
+                (current_ltp, unrealized_pnl, pnl_pct, position_id),
+            )
             conn.commit()
         finally:
             conn.close()
 
     @staticmethod
     def update_position_status(
-        position_id: str,
-        status: str,
-        exit_price: float,
-        realized_pnl: float,
-        close_reason: str
+        position_id: str, status: str, exit_price: float, realized_pnl: float, close_reason: str
     ) -> None:
         """Marks a position as CLOSED with final realized accounting."""
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
             UPDATE positions SET
                 status = ?, exit_price = ?, realized_pnl = ?,
                 unrealized_pnl = 0.0, close_reason = ?, closed_at = ?
             WHERE position_id = ?
-            """, (status, exit_price, realized_pnl, close_reason, now, position_id))
+            """,
+                (status, exit_price, realized_pnl, close_reason, now, position_id),
+            )
             conn.commit()
         finally:
             conn.close()
 
     @staticmethod
-    def get_position_by_id(position_id: str) -> Optional[Dict[str, Any]]:
+    def get_position_by_id(position_id: str) -> dict[str, Any] | None:
         """Fetches a position record by its unique position_id."""
         conn = get_db_connection()
         try:
@@ -305,7 +356,7 @@ class TradingRepository:
             conn.close()
 
     @staticmethod
-    def get_open_positions_from_db() -> Dict[str, Dict[str, Any]]:
+    def get_open_positions_from_db() -> dict[str, dict[str, Any]]:
         """Returns all currently OPEN positions indexed by position_id."""
         conn = get_db_connection()
         try:
@@ -317,7 +368,7 @@ class TradingRepository:
             conn.close()
 
     @staticmethod
-    def get_closed_positions_on(date_prefix: str, mode: str) -> List[Dict[str, Any]]:
+    def get_closed_positions_on(date_prefix: str, mode: str) -> list[dict[str, Any]]:
         """Positions closed on a given day (YYYY-MM-DD) in a trading mode, newest first."""
         conn = get_db_connection()
         try:
@@ -326,33 +377,44 @@ class TradingRepository:
                 "SELECT position_id, realized_pnl, closed_at FROM positions "
                 "WHERE status = 'CLOSED' AND mode = ? AND closed_at LIKE ? "
                 "ORDER BY closed_at DESC, id DESC",
-                (mode, date_prefix + "%")
+                (mode, date_prefix + "%"),
             )
             return [dict(r) for r in cursor.fetchall()]
         finally:
             conn.close()
 
     @staticmethod
-    def save_order(order: Dict[str, Any], proposal_id: Optional[str] = None) -> None:
+    def save_order(order: dict[str, Any], proposal_id: str | None = None) -> None:
         """Inserts an order transmission or completion log into the immutable audit table."""
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
             INSERT OR REPLACE INTO orders (
                 order_id, proposal_id, instrument, order_type, quantity, price, status, mode, pnl, timestamp, status_message
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                order["order_id"], proposal_id, order["instrument"], order["type"],
-                order["quantity"], order["price"], order["status"], order["mode"],
-                order.get("pnl"), order["timestamp"], order.get("status_message")
-            ))
+            """,
+                (
+                    order["order_id"],
+                    proposal_id,
+                    order["instrument"],
+                    order["type"],
+                    order["quantity"],
+                    order["price"],
+                    order["status"],
+                    order["mode"],
+                    order.get("pnl"),
+                    order["timestamp"],
+                    order.get("status_message"),
+                ),
+            )
             conn.commit()
         finally:
             conn.close()
 
     @staticmethod
-    def get_history_from_db(limit: int = 50) -> List[Dict[str, Any]]:
+    def get_history_from_db(limit: int = 50) -> list[dict[str, Any]]:
         """
         Retrieves unified history joining trade suggestions with linked position outcomes.
         """
@@ -360,7 +422,7 @@ class TradingRepository:
         try:
             cursor = conn.cursor()
             query = """
-            SELECT 
+            SELECT
                 s.proposal_id,
                 s.symbol,
                 s.instrument,
@@ -418,41 +480,55 @@ class TradingRepository:
 
 # ==================== BACKWARD COMPATIBLE PROCEDURAL FACADES ====================
 
-def save_suggestion(proposal: Dict[str, Any]) -> None:
+
+def save_suggestion(proposal: dict[str, Any]) -> None:
     TradingRepository.save_suggestion(proposal)
+
 
 def update_suggestion_status(proposal_id: str, status: str) -> None:
     TradingRepository.update_suggestion_status(proposal_id, status)
 
-def save_position(pos: Dict[str, Any]) -> None:
+
+def save_position(pos: dict[str, Any]) -> None:
     TradingRepository.save_position(pos)
 
-def update_position_in_db(pos: Dict[str, Any]) -> None:
+
+def update_position_in_db(pos: dict[str, Any]) -> None:
     TradingRepository.update_position_in_db(pos)
+
 
 def update_position_pnl(position_id: str, current_ltp: float, unrealized_pnl: float, pnl_pct: float) -> None:
     TradingRepository.update_position_pnl(position_id, current_ltp, unrealized_pnl, pnl_pct)
 
-def update_position_status(position_id: str, status: str, exit_price: float, realized_pnl: float, close_reason: str) -> None:
+
+def update_position_status(
+    position_id: str, status: str, exit_price: float, realized_pnl: float, close_reason: str
+) -> None:
     TradingRepository.update_position_status(position_id, status, exit_price, realized_pnl, close_reason)
 
-def get_position_by_id(position_id: str) -> Optional[Dict[str, Any]]:
+
+def get_position_by_id(position_id: str) -> dict[str, Any] | None:
     return TradingRepository.get_position_by_id(position_id)
 
-def get_open_positions_from_db() -> Dict[str, Dict[str, Any]]:
+
+def get_open_positions_from_db() -> dict[str, dict[str, Any]]:
     return TradingRepository.get_open_positions_from_db()
 
-def save_order(order: Dict[str, Any], proposal_id: Optional[str] = None) -> None:
+
+def save_order(order: dict[str, Any], proposal_id: str | None = None) -> None:
     TradingRepository.save_order(order, proposal_id)
 
-def get_closed_positions_on(date_prefix: str, mode: str) -> List[Dict[str, Any]]:
+
+def get_closed_positions_on(date_prefix: str, mode: str) -> list[dict[str, Any]]:
     return TradingRepository.get_closed_positions_on(date_prefix, mode)
 
-def get_history_from_db(limit: int = 50) -> List[Dict[str, Any]]:
+
+def get_history_from_db(limit: int = 50) -> list[dict[str, Any]]:
     return TradingRepository.get_history_from_db(limit)
 
 
 # ==================== SECURE VAULT & AUTH MANAGEMENT ====================
+
 
 def is_master_password_set() -> bool:
     """Checks whether the system has been initialized with a master password."""
@@ -465,9 +541,11 @@ def is_master_password_set() -> bool:
     finally:
         conn.close()
 
+
 def setup_master_password(password: str) -> None:
     """Sets initial master password and derives the master vault encryption key."""
-    from security import hash_password, derive_fernet_key
+    from security import derive_fernet_key, hash_password
+
     global _unlocked_encryption_key
 
     pwd_hash, salt_hex = hash_password(password)
@@ -477,10 +555,13 @@ def setup_master_password(password: str) -> None:
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute("""
+        cursor.execute(
+            """
         INSERT OR REPLACE INTO auth_config (id, password_hash, salt, master_key_salt, is_initialized, created_at)
         VALUES (1, ?, ?, ?, 1, ?)
-        """, (pwd_hash, salt_hex, master_key_salt, now))
+        """,
+            (pwd_hash, salt_hex, master_key_salt, now),
+        )
         conn.commit()
     finally:
         conn.close()
@@ -488,9 +569,11 @@ def setup_master_password(password: str) -> None:
     _unlocked_encryption_key = derive_fernet_key(password, bytes.fromhex(master_key_salt))
     log_config_saved("database.setup_master_password", ["master_password_hash", "master_key_salt"])
 
+
 def verify_and_unlock_master_password(password: str) -> bool:
     """Validates provided master password against PBKDF2 hash and unlocks the Fernet vault key."""
-    from security import verify_password, derive_fernet_key
+    from security import derive_fernet_key, verify_password
+
     global _unlocked_encryption_key
 
     conn = get_db_connection()
@@ -509,18 +592,22 @@ def verify_and_unlock_master_password(password: str) -> bool:
         _unlocked_encryption_key = derive_fernet_key(password, bytes.fromhex(row["master_key_salt"]))
     return is_valid
 
+
 def lock_vault() -> None:
     """Locks the secure vault by purging the encryption key from memory."""
     global _unlocked_encryption_key
     _unlocked_encryption_key = None
 
+
 def is_vault_unlocked() -> bool:
     """Returns True if the vault is currently unlocked with the active encryption key."""
     return _unlocked_encryption_key is not None
 
+
 def save_secure_setting(key: str, plain_value: str) -> None:
     """Encrypts a sensitive string using Fernet and stores it in SQLite secure_vault."""
     from security import encrypt_value
+
     global _unlocked_encryption_key
     if not _unlocked_encryption_key:
         raise RuntimeError("Vault is locked. Authenticate with master password first.")
@@ -531,18 +618,23 @@ def save_secure_setting(key: str, plain_value: str) -> None:
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute("""
+        cursor.execute(
+            """
         INSERT OR REPLACE INTO secure_vault (key, encrypted_value, updated_at)
         VALUES (?, ?, ?)
-        """, (key, encrypted_text, now))
+        """,
+            (key, encrypted_text, now),
+        )
         conn.commit()
     finally:
         conn.close()
     log_config_saved("database.save_secure_setting", [key])
 
+
 def get_secure_setting(key: str, default: str = "") -> str:
     """Decrypts a sensitive setting from the vault using the in-memory master key."""
     from security import decrypt_value
+
     global _unlocked_encryption_key
     if not _unlocked_encryption_key:
         return default
@@ -561,7 +653,8 @@ def get_secure_setting(key: str, default: str = "") -> str:
     decrypted = decrypt_value(row["encrypted_value"], _unlocked_encryption_key)
     return decrypted if decrypted else default
 
-def get_all_secure_settings() -> Dict[str, str]:
+
+def get_all_secure_settings() -> dict[str, str]:
     """Returns all settings with decrypted values for internal configurations."""
     conn = get_db_connection()
     try:

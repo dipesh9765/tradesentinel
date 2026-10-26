@@ -11,22 +11,22 @@ and authorization barriers:
 6. Login brute-force throttling: repeated failures from one client lock further attempts briefly.
 """
 
-import os
-import hashlib
-import secrets
 import base64
+import hashlib
+import os
+import secrets
 import time
-from typing import Optional, Dict, Tuple
+
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 # In-memory active session tokens: token -> {"created_at": float, "expires_at": float}
-ACTIVE_SESSIONS: Dict[str, Dict[str, float]] = {}
+ACTIVE_SESSIONS: dict[str, dict[str, float]] = {}
 SESSION_DURATION_SECONDS: int = 86400  # fixed 24-hour lifetime
 
 
-def hash_password(password: str, salt: Optional[bytes] = None) -> Tuple[str, str]:
+def hash_password(password: str, salt: bytes | None = None) -> tuple[str, str]:
     """
     Hashes a plain master password using PBKDF2-HMAC-SHA256 with 100,000 rounds.
 
@@ -129,14 +129,11 @@ def create_session_token() -> str:
     """
     token = secrets.token_urlsafe(32)
     now = time.time()
-    ACTIVE_SESSIONS[token] = {
-        "created_at": now,
-        "expires_at": now + SESSION_DURATION_SECONDS
-    }
+    ACTIVE_SESSIONS[token] = {"created_at": now, "expires_at": now + SESSION_DURATION_SECONDS}
     return token
 
 
-def validate_session_token(token: Optional[str]) -> bool:
+def validate_session_token(token: str | None) -> bool:
     """
     Validates whether an incoming HTTP Bearer token is registered and has not expired.
 
@@ -164,8 +161,7 @@ def invalidate_session_token(token: str) -> None:
     Args:
         token: Session token string to revoke.
     """
-    if token in ACTIVE_SESSIONS:
-        del ACTIVE_SESSIONS[token]
+    ACTIVE_SESSIONS.pop(token, None)
 
 
 def cleanup_expired_sessions() -> int:
@@ -200,7 +196,7 @@ def has_active_session() -> bool:
 MAX_LOGIN_FAILURES: int = 5
 LOGIN_LOCKOUT_SECONDS: int = 60
 LOGIN_FAILURE_WINDOW_SECONDS: int = 300
-_LOGIN_FAILURES: Dict[str, list] = {}
+_LOGIN_FAILURES: dict[str, list] = {}
 
 
 def login_lockout_remaining(client_key: str) -> int:

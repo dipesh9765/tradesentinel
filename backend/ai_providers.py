@@ -13,7 +13,7 @@ UI takes effect immediately with no restart.
 import json
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import httpx
 
@@ -27,7 +27,7 @@ DEFAULT_PROVIDER = "gemini"
 REQUEST_TIMEOUT_SECONDS = 30.0
 
 # Suggested models only; the UI also accepts any custom model id the provider supports.
-PROVIDERS: Dict[str, Dict[str, Any]] = {
+PROVIDERS: dict[str, dict[str, Any]] = {
     "gemini": {
         "label": "Google Gemini",
         "key_setting": "GEMINI_API_KEY",
@@ -99,12 +99,13 @@ def set_model(provider: str, model: str) -> None:
     database.save_secure_setting(PROVIDERS[provider]["model_setting"], model)
 
 
-def is_configured(provider: Optional[str] = None) -> bool:
+def is_configured(provider: str | None = None) -> bool:
     return bool(get_api_key(provider or get_active_provider()))
 
 
-def describe_config() -> Dict[str, Any]:
+def describe_config() -> dict[str, Any]:
     """Settings-page view: never includes raw keys, only whether one is stored."""
+
     def mask(val: str) -> str:
         if not val:
             return ""
@@ -128,32 +129,33 @@ def describe_config() -> Dict[str, Any]:
     }
 
 
-def _extract_json(text: str) -> Dict[str, Any]:
+def _extract_json(text: str) -> dict[str, Any]:
     """Parses a JSON object from model text, tolerating code fences and surrounding prose."""
     text = (text or "").strip()
     start, end = text.find("{"), text.rfind("}")
     if start == -1 or end <= start:
         raise AIProviderError("Model response contained no JSON object.")
     try:
-        return json.loads(text[start:end + 1])
+        return json.loads(text[start : end + 1])
     except json.JSONDecodeError as e:
-        raise AIProviderError(f"Model returned malformed JSON: {e}")
+        raise AIProviderError(f"Model returned malformed JSON: {e}") from e
 
 
 def _call_gemini(api_key: str, model: str, prompt: str) -> str:
     from google import genai
     from google.genai import types
+
     client = genai.Client(api_key=api_key)
     response = client.models.generate_content(
         model=model,
         contents=prompt,
         config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.2),
     )
-    return response.text
+    return response.text or ""
 
 
 def _call_openai(api_key: str, model: str, prompt: str) -> str:
-    body: Dict[str, Any] = {
+    body: dict[str, Any] = {
         "model": model,
         "messages": [
             {"role": "system", "content": "Respond with a single valid JSON object and nothing else."},
@@ -193,15 +195,16 @@ def _call_anthropic(api_key: str, model: str, prompt: str) -> str:
     )
     if resp.status_code != 200:
         raise AIProviderError(f"Anthropic error {resp.status_code}: {resp.text[:300]}")
-    blocks: List[Dict[str, Any]] = resp.json().get("content", [])
+    blocks: list[dict[str, Any]] = resp.json().get("content", [])
     return "".join(b.get("text", "") for b in blocks if b.get("type") == "text")
 
 
 _CALLERS = {"gemini": _call_gemini, "openai": _call_openai, "anthropic": _call_anthropic}
 
 
-def generate_json(prompt: str, provider: Optional[str] = None, model: Optional[str] = None,
-                  api_key: Optional[str] = None) -> Dict[str, Any]:
+def generate_json(
+    prompt: str, provider: str | None = None, model: str | None = None, api_key: str | None = None
+) -> dict[str, Any]:
     """
     Sends a prompt to the chosen provider (default: the active one) and returns the parsed
     JSON object. Retries once on a transient 5xx/429/network failure. Raises AIProviderError.
@@ -214,7 +217,7 @@ def generate_json(prompt: str, provider: Optional[str] = None, model: Optional[s
         raise AIProviderError(f"No API key configured for {PROVIDERS[provider]['label']}.")
     model = model or get_model(provider)
 
-    last_error: Optional[Exception] = None
+    last_error: Exception | None = None
     for attempt in range(2):
         try:
             return _extract_json(_CALLERS[provider](api_key, model, prompt))

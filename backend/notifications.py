@@ -8,7 +8,8 @@ notifications, respecting the configured 'Office Mode' for quiet/discrete alerti
 """
 
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Any
+
 import httpx
 from pydantic import BaseModel, Field
 
@@ -19,10 +20,11 @@ logger = logging.getLogger(__name__)
 
 class NotificationConfig(BaseModel):
     """Configuration container for notification channels and privacy options."""
-    telegram_bot_token: Optional[str] = Field(default="", description="Telegram Bot API Token")
-    telegram_chat_id: Optional[str] = Field(default="", description="Telegram target Chat or Channel ID")
-    discord_webhook_url: Optional[str] = Field(default="", description="Discord Webhook URL")
-    slack_webhook_url: Optional[str] = Field(default="", description="Slack Incoming Webhook URL")
+
+    telegram_bot_token: str | None = Field(default="", description="Telegram Bot API Token")
+    telegram_chat_id: str | None = Field(default="", description="Telegram target Chat or Channel ID")
+    discord_webhook_url: str | None = Field(default="", description="Discord Webhook URL")
+    slack_webhook_url: str | None = Field(default="", description="Slack Incoming Webhook URL")
     desktop_enabled: bool = Field(default=True, description="Enable browser/desktop notifications")
     office_mode: bool = Field(default=True, description="Mute loud speech synthesis; use subtle chimes")
 
@@ -55,12 +57,12 @@ class NotificationService(BaseNotificationDispatcher):
 
     def __init__(self):
         self.config: NotificationConfig = NotificationConfig()
-        self.notification_log: List[Dict[str, Any]] = []
+        self.notification_log: list[dict[str, Any]] = []
 
-    def update_config(self, new_config: Dict[str, Any]) -> None:
+    def update_config(self, new_config: dict[str, Any]) -> None:
         """
         Updates active notification credentials and office mode toggles.
-        
+
         Args:
             new_config: Dictionary of config parameters to update.
         """
@@ -75,7 +77,7 @@ class NotificationService(BaseNotificationDispatcher):
         discord_title: str,
         discord_message: str,
         discord_color: int,
-        slack_mrkdwn: str
+        slack_mrkdwn: str,
     ) -> None:
         """Dispatches pre-formatted alerts to all configured communication channels concurrently."""
         if self.config.telegram_bot_token and self.config.telegram_chat_id:
@@ -87,7 +89,7 @@ class NotificationService(BaseNotificationDispatcher):
         if self.config.slack_webhook_url:
             await self._send_slack(slack_mrkdwn)
 
-    def _format_proposal_message(self, proposal: Dict[str, Any]) -> tuple[str, str, str]:
+    def _format_proposal_message(self, proposal: dict[str, Any]) -> tuple[str, str, str]:
         """Formats trade proposal title, body, and telegram HTML."""
         signal_type = proposal["signal_type"]
         instrument = proposal["instrument"]
@@ -110,24 +112,19 @@ class NotificationService(BaseNotificationDispatcher):
         telegram_html = f"<b>{title}</b>\n\n{message}"
         return title, message, telegram_html
 
-    async def notify_trade_proposal(self, proposal: Dict[str, Any]) -> Dict[str, Any]:
+    async def notify_trade_proposal(self, proposal: dict[str, Any]) -> dict[str, Any]:
         """
         Dispatches a high-priority alert when a new AI trade proposal is generated.
-        
+
         Args:
             proposal: Trade proposal dictionary.
-            
+
         Returns:
             Dict containing notification log entry.
         """
         title, message, telegram_html = self._format_proposal_message(proposal)
 
-        record = {
-            "type": "TRADE_PROPOSAL",
-            "title": title,
-            "message": message,
-            "data": proposal
-        }
+        record = {"type": "TRADE_PROPOSAL", "title": title, "message": message, "data": proposal}
         self.notification_log.insert(0, record)
 
         await self._dispatch_to_active_channels(
@@ -135,15 +132,15 @@ class NotificationService(BaseNotificationDispatcher):
             discord_title=title,
             discord_message=message,
             discord_color=0x00F0FF,
-            slack_mrkdwn=f"*{title}*\n{message}"
+            slack_mrkdwn=f"*{title}*\n{message}",
         )
 
         return record
 
-    async def notify_trade_executed(self, order: Dict[str, Any], position: Dict[str, Any]) -> None:
+    async def notify_trade_executed(self, order: dict[str, Any], position: dict[str, Any]) -> None:
         """
         Dispatches order execution notification upon fill confirmation.
-        
+
         Args:
             order: Executed order dictionary.
             position: Initialized position dictionary.
@@ -166,13 +163,13 @@ class NotificationService(BaseNotificationDispatcher):
             discord_title=title,
             discord_message=message,
             discord_color=0x00E699,
-            slack_mrkdwn=f"*{title}*\n{message}"
+            slack_mrkdwn=f"*{title}*\n{message}",
         )
 
     async def notify_target_or_sl(self, symbol: str, reason: str, pnl: float) -> None:
         """
         Dispatches alert when stop-loss or profit target is triggered.
-        
+
         Args:
             symbol: Target ticker symbol.
             reason: Trigger reason ('STOP_LOSS_HIT', 'TARGET_HIT').
@@ -187,7 +184,7 @@ class NotificationService(BaseNotificationDispatcher):
             discord_title=title,
             discord_message=message,
             discord_color=0x00E699 if pnl >= 0 else 0xFF3366,
-            slack_mrkdwn=f"*{title}*\n{message}"
+            slack_mrkdwn=f"*{title}*\n{message}",
         )
 
     async def _send_telegram(self, text: str) -> None:
@@ -195,11 +192,9 @@ class NotificationService(BaseNotificationDispatcher):
         try:
             url = f"https://api.telegram.org/bot{self.config.telegram_bot_token}/sendMessage"
             async with httpx.AsyncClient(timeout=5.0) as client:
-                await client.post(url, json={
-                    "chat_id": self.config.telegram_chat_id,
-                    "text": text,
-                    "parse_mode": "HTML"
-                })
+                await client.post(
+                    url, json={"chat_id": self.config.telegram_chat_id, "text": text, "parse_mode": "HTML"}
+                )
         except Exception as e:
             logger.error(f"Failed to dispatch Telegram alert: {e}")
 
@@ -207,13 +202,10 @@ class NotificationService(BaseNotificationDispatcher):
         """Sends an embedded rich card via Discord Webhook."""
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
-                await client.post(self.config.discord_webhook_url, json={
-                    "embeds": [{
-                        "title": title,
-                        "description": description,
-                        "color": color
-                    }]
-                })
+                await client.post(
+                    self.config.discord_webhook_url or "",
+                    json={"embeds": [{"title": title, "description": description, "color": color}]},
+                )
         except Exception as e:
             logger.error(f"Failed to dispatch Discord webhook: {e}")
 
@@ -221,7 +213,7 @@ class NotificationService(BaseNotificationDispatcher):
         """Sends a markdown message via Slack Incoming Webhook."""
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
-                await client.post(self.config.slack_webhook_url, json={"text": text})
+                await client.post(self.config.slack_webhook_url or "", json={"text": text})
         except Exception as e:
             logger.error(f"Failed to dispatch Slack webhook: {e}")
 

@@ -6,7 +6,7 @@ so the strategy that is backtested is exactly the one that trades.
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ BREAK_EVEN_TRIGGER_PCT = 6.0
 T1_PROFIT_LOCK_FRACTION = 0.5
 
 
-def check_exit_triggers(pos: Dict[str, Any], cur_price: float) -> Optional[str]:
+def check_exit_triggers(pos: dict[str, Any], cur_price: float) -> str | None:
     """
     Evaluates whether a position has reached its Stop-Loss or Target threshold and applies the
     multi-tier trailing stop (mutating pos["stop_loss"]):
@@ -31,18 +31,26 @@ def check_exit_triggers(pos: Dict[str, Any], cur_price: float) -> Optional[str]:
     t2 = float(pos.get("target_2", t1 * 1.05))
     buy_price = float(pos["buy_price"])
 
-    gain_pct = ((cur_price - buy_price) / buy_price) * 100 if is_long else ((buy_price - cur_price) / buy_price) * 100
+    gain_pct = (
+        ((cur_price - buy_price) / buy_price) * 100
+        if is_long
+        else ((buy_price - cur_price) / buy_price) * 100
+    )
 
     if is_long:
         if gain_pct >= BREAK_EVEN_TRIGGER_PCT and sl < buy_price:
             pos["stop_loss"] = buy_price
-            logger.info(f"Position {pos.get('position_id')}: +{gain_pct:.1f}% gain! SL trailed to Break-Even ₹{buy_price}")
+            logger.info(
+                f"Position {pos.get('position_id')}: +{gain_pct:.1f}% gain! SL trailed to Break-Even ₹{buy_price}"
+            )
 
         if cur_price >= t1:
             locked_gain_sl = round(buy_price + ((t1 - buy_price) * T1_PROFIT_LOCK_FRACTION), 2)
             if pos["stop_loss"] < locked_gain_sl:
                 pos["stop_loss"] = locked_gain_sl
-                logger.info(f"Position {pos.get('position_id')}: Target 1 hit! Trailing SL to locked profit ₹{locked_gain_sl}")
+                logger.info(
+                    f"Position {pos.get('position_id')}: Target 1 hit! Trailing SL to locked profit ₹{locked_gain_sl}"
+                )
 
         if cur_price <= pos["stop_loss"]:
             return "STOP_LOSS_HIT"
@@ -51,13 +59,17 @@ def check_exit_triggers(pos: Dict[str, Any], cur_price: float) -> Optional[str]:
     else:
         if gain_pct >= BREAK_EVEN_TRIGGER_PCT and sl > buy_price:
             pos["stop_loss"] = buy_price
-            logger.info(f"Position {pos.get('position_id')}: +{gain_pct:.1f}% gain! SL trailed to Break-Even ₹{buy_price}")
+            logger.info(
+                f"Position {pos.get('position_id')}: +{gain_pct:.1f}% gain! SL trailed to Break-Even ₹{buy_price}"
+            )
 
         if cur_price <= t1:
             locked_gain_sl = round(buy_price - ((buy_price - t1) * T1_PROFIT_LOCK_FRACTION), 2)
             if pos["stop_loss"] > locked_gain_sl:
                 pos["stop_loss"] = locked_gain_sl
-                logger.info(f"Position {pos.get('position_id')}: Target 1 hit! Trailing SL to locked profit ₹{locked_gain_sl}")
+                logger.info(
+                    f"Position {pos.get('position_id')}: Target 1 hit! Trailing SL to locked profit ₹{locked_gain_sl}"
+                )
 
         if cur_price >= pos["stop_loss"]:
             return "STOP_LOSS_HIT"

@@ -2,21 +2,19 @@
 System Settings, Secure Vault & Broker Connectivity Endpoints
 """
 
-from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 import ai_providers
-
 import database
-from app.config import settings, load_instruments_data
 from app.api.deps import require_auth
-from app.models.schemas import SettingsUpdateRequest, ModeUpdateRequest, KiteSessionRequest
+from app.config import load_instruments_data, settings
+from app.models.schemas import KiteSessionRequest, ModeUpdateRequest, SettingsUpdateRequest
 from kite_executor import kite_executor
-from trade_analyzer import trade_analyzer
 from market_data import market_data_manager
 from notifications import notification_service
 from server_logger import log_config_saved
+from trade_analyzer import trade_analyzer
 
 router = APIRouter(tags=["Settings"])
 
@@ -54,15 +52,15 @@ def get_settings():
         "gemini_active": bool(trade_analyzer.client),
         "ai_provider": ai_providers.get_active_provider(),
         "ai_active": ai_providers.is_configured(),
-        "kite_active": kite_executor.is_authenticated()
+        "kite_active": kite_executor.is_authenticated(),
     }
 
 
 class AIConfigUpdate(BaseModel):
-    provider: Optional[str] = None  # provider to make active
-    model: Optional[str] = None  # model for `target_provider` (defaults to `provider`)
-    target_provider: Optional[str] = None
-    api_key: Optional[str] = None  # key for `target_provider`
+    provider: str | None = None  # provider to make active
+    model: str | None = None  # model for `target_provider` (defaults to `provider`)
+    target_provider: str | None = None
+    api_key: str | None = None  # key for `target_provider`
 
 
 @router.get("/api/ai/config", dependencies=[Depends(require_auth)])
@@ -76,7 +74,9 @@ def update_ai_config(req: AIConfigUpdate):
     """Saves the active provider, a provider's model and/or its API key to the encrypted vault."""
     target = req.target_provider or req.provider
     if target and target not in ai_providers.PROVIDERS:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unknown AI provider '{target}'.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unknown AI provider '{target}'."
+        )
     modified = []
     try:
         if req.api_key and req.api_key.strip():
@@ -93,7 +93,7 @@ def update_ai_config(req: AIConfigUpdate):
             ai_providers.set_active_provider(req.provider)
             modified.append(ai_providers.AI_PROVIDER_SETTING)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     log_config_saved("api/ai/config", modified)
     return {"success": True, **ai_providers.describe_config()}
 
@@ -103,7 +103,9 @@ def test_ai_provider(req: AIConfigUpdate):
     """Makes one tiny live call to verify a provider/model/key combination works."""
     provider = req.target_provider or req.provider or ai_providers.get_active_provider()
     if provider not in ai_providers.PROVIDERS:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unknown AI provider '{provider}'.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unknown AI provider '{provider}'."
+        )
     try:
         ai_providers.generate_json(
             'Reply with exactly this JSON: {"ok": true}',
@@ -112,7 +114,7 @@ def test_ai_provider(req: AIConfigUpdate):
             api_key=(req.api_key or "").strip() or None,
         )
     except ai_providers.AIProviderError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     return {"success": True, "provider": provider}
 
 
@@ -130,7 +132,7 @@ async def test_notifications_endpoint():
         "risk_reward": "1:2.0",
         "confidence": 95,
         "verbal_pitch": f"Test notification for {test_symbol} from TradeSentinel",
-        "technical_rationale": "System verification of webhook channels"
+        "technical_rationale": "System verification of webhook channels",
     }
     await notification_service.notify_trade_proposal(test_proposal)
     return {"success": True, "message": "Test alert dispatched to configured notification channels."}
@@ -173,13 +175,15 @@ def update_settings(req: SettingsUpdateRequest):
         kite_executor.mode = req.trading_mode
         database.save_secure_setting("TRADING_MODE", req.trading_mode)
 
-    notification_service.update_config({
-        "telegram_bot_token": req.telegram_bot_token,
-        "telegram_chat_id": req.telegram_chat_id,
-        "discord_webhook_url": req.discord_webhook_url,
-        "slack_webhook_url": req.slack_webhook_url,
-        "office_mode": req.office_mode
-    })
+    notification_service.update_config(
+        {
+            "telegram_bot_token": req.telegram_bot_token,
+            "telegram_chat_id": req.telegram_chat_id,
+            "discord_webhook_url": req.discord_webhook_url,
+            "slack_webhook_url": req.slack_webhook_url,
+            "office_mode": req.office_mode,
+        }
+    )
 
     modified_keys = []
     if req.gemini_api_key:
@@ -192,7 +196,15 @@ def update_settings(req: SettingsUpdateRequest):
         modified_keys.append("KITE_ACCESS_TOKEN")
     if req.trading_mode:
         modified_keys.append("TRADING_MODE")
-    if any([req.telegram_bot_token, req.telegram_chat_id, req.discord_webhook_url, req.slack_webhook_url, req.office_mode is not None]):
+    if any(
+        [
+            req.telegram_bot_token,
+            req.telegram_chat_id,
+            req.discord_webhook_url,
+            req.slack_webhook_url,
+            req.office_mode is not None,
+        ]
+    ):
         modified_keys.append("NOTIFICATIONS")
     log_config_saved("api/settings", modified_keys, req.trading_mode)
 
@@ -201,7 +213,7 @@ def update_settings(req: SettingsUpdateRequest):
         "mode": kite_executor.mode,
         "gemini_active": bool(trade_analyzer.client),
         "kite_active": kite_executor.is_authenticated(),
-        "office_mode": notification_service.config.office_mode
+        "office_mode": notification_service.config.office_mode,
     }
 
 
@@ -220,7 +232,7 @@ def generate_kite_session(req: KiteSessionRequest):
         market_data_manager.refresh_live_quotes()
         return {"success": True, "session": session}
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
 @router.get("/api/kite/balance", dependencies=[Depends(require_auth)])
@@ -236,7 +248,9 @@ def get_kite_balance():
 def update_trading_mode(req: ModeUpdateRequest):
     """Instant switch between PAPER Sandbox and Zerodha Kite LIVE with persistent database storage."""
     if req.trading_mode not in ["PAPER", "LIVE"]:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid mode. Must be 'PAPER' or 'LIVE'.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid mode. Must be 'PAPER' or 'LIVE'."
+        )
     settings.TRADING_MODE = req.trading_mode
     kite_executor.mode = req.trading_mode
     database.save_secure_setting("TRADING_MODE", req.trading_mode)
@@ -258,5 +272,5 @@ def reload_instruments_endpoint():
     return {
         "success": True,
         "message": "Successfully hot-reloaded instruments from instruments.json.",
-        "instruments": market_data_manager.get_all_quotes()
+        "instruments": market_data_manager.get_all_quotes(),
     }

@@ -3,12 +3,13 @@ Market Data & Quantitative Technical Analysis Endpoints
 """
 
 from fastapi import APIRouter, Depends, Query
-from app.config import settings
+
 from app.api.deps import require_auth
-from market_data import market_data_manager
+from app.config import settings
 from kite_executor import kite_executor
-from trade_analyzer import trade_analyzer
+from market_data import market_data_manager
 from notifications import notification_service
+from trade_analyzer import trade_analyzer
 
 router = APIRouter(tags=["Market Data"])
 
@@ -31,7 +32,7 @@ def get_system_status():
         "is_market_live": market_data_manager.is_live,
         "market_status_message": market_data_manager.status_message,
         "portfolio": kite_executor.get_portfolio_summary(),
-        "office_mode": notification_service.config.office_mode
+        "office_mode": notification_service.config.office_mode,
     }
 
 

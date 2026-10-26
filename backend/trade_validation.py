@@ -8,7 +8,7 @@ risk-reward, so a malformed signal can never reach the broker.
 """
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 MIN_RISK_REWARD = 1.8
 MAX_STOP_DISTANCE_PCT = 25.0  # Stop further than this from entry is not a "tight" stop
@@ -21,7 +21,7 @@ def is_option_instrument(instrument: str) -> bool:
     return bool(re.search(r"\s(CE|PE)\s*$", instrument or ""))
 
 
-def compute_risk_reward(signal: Dict[str, Any]) -> Optional[float]:
+def compute_risk_reward(signal: dict[str, Any]) -> float | None:
     """Returns reward/risk for target_1, or None if the levels are unusable."""
     try:
         entry = float(signal["entry_price"])
@@ -35,14 +35,14 @@ def compute_risk_reward(signal: Dict[str, Any]) -> Optional[float]:
     return abs(target - entry) / risk
 
 
-def validate_signal(signal: Dict[str, Any], min_rr: float = MIN_RISK_REWARD) -> List[str]:
+def validate_signal(signal: dict[str, Any], min_rr: float = MIN_RISK_REWARD) -> list[str]:
     """
     Returns a list of human-readable problems with the signal; empty means valid.
 
     Long-side signals (calls, puts and equity buys are all bought instruments)
     need stop < entry < target_1 <= target_2. Short equity mirrors that.
     """
-    errors: List[str] = []
+    errors: list[str] = []
 
     signal_type = str(signal.get("signal_type", ""))
     if signal_type not in LONG_SIGNALS + SHORT_SIGNALS:

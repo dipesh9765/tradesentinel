@@ -33,7 +33,9 @@ async def backtest_endpoint(req: BacktestRequest):
         df = await asyncio.to_thread(market_data_manager.fetch_history_df, req.symbol, req.days)
         return await asyncio.to_thread(run_backtest, df, req.symbol, req.lots)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Backtest failed: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Backtest failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Backtest failed: {e}"
+        ) from e

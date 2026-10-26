@@ -1,12 +1,13 @@
+import datetime
+import json
+import logging
 import os
 import sys
-import json
 import time
 import uuid
-import logging
-import datetime
 from logging.handlers import RotatingFileHandler
-from typing import Any, Dict, Optional
+from typing import Any
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response, StreamingResponse
@@ -24,10 +25,22 @@ CURRENT_LOG_FILE = os.path.join(LOGS_DIR, f"server_{current_timestamp_str}.log")
 
 # Sensitive keys to mask in logs
 SENSITIVE_KEYS = {
-    "password", "pass", "pwd", "secret", "api_key", "api_secret", 
-    "access_token", "request_token", "authorization", "token", 
-    "master_password", "master_key_salt", "encrypted_value", "credentials"
+    "password",
+    "pass",
+    "pwd",
+    "secret",
+    "api_key",
+    "api_secret",
+    "access_token",
+    "request_token",
+    "authorization",
+    "token",
+    "master_password",
+    "master_key_salt",
+    "encrypted_value",
+    "credentials",
 }
+
 
 def mask_sensitive_data(data: Any) -> Any:
     """Recursively masks passwords, tokens, and API secrets to avoid log exposure."""
@@ -45,19 +58,16 @@ def mask_sensitive_data(data: Any) -> Any:
         return [mask_sensitive_data(item) for item in data]
     return data
 
+
 def setup_server_logging():
     """Initializes standard rotating 3MB file logger with date and time in filename."""
     formatter = logging.Formatter(
-        "[%(asctime)s] [%(levelname)-7s] [%(name)s:%(lineno)d] %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
+        "[%(asctime)s] [%(levelname)-7s] [%(name)s:%(lineno)d] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
     )
 
     # 1. 3MB Rotating File Handler
     file_handler = RotatingFileHandler(
-        CURRENT_LOG_FILE,
-        maxBytes=MAX_LOG_FILE_BYTES,
-        backupCount=50,
-        encoding="utf-8"
+        CURRENT_LOG_FILE, maxBytes=MAX_LOG_FILE_BYTES, backupCount=50, encoding="utf-8"
     )
     file_handler.setFormatter(formatter)
     file_handler.setLevel(logging.INFO)
@@ -70,36 +80,42 @@ def setup_server_logging():
     # 3. Configure Root Logger
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.INFO)
-    
+
     # Avoid duplicate handlers if re-initialized
     if not any(isinstance(h, RotatingFileHandler) for h in root_logger.handlers):
         root_logger.addHandler(file_handler)
-    if not any(isinstance(h, logging.StreamHandler) and not isinstance(h, RotatingFileHandler) for h in root_logger.handlers):
+    if not any(
+        isinstance(h, logging.StreamHandler) and not isinstance(h, RotatingFileHandler)
+        for h in root_logger.handlers
+    ):
         root_logger.addHandler(console_handler)
 
     # Also route uvicorn loggers to file
     for uvi_logger_name in ["uvicorn", "uvicorn.access", "uvicorn.error", "fastapi"]:
-        l = logging.getLogger(uvi_logger_name)
-        l.setLevel(logging.INFO)
-        if not any(isinstance(h, RotatingFileHandler) for h in l.handlers):
-            l.addHandler(file_handler)
+        uvi_logger = logging.getLogger(uvi_logger_name)
+        uvi_logger.setLevel(logging.INFO)
+        if not any(isinstance(h, RotatingFileHandler) for h in uvi_logger.handlers):
+            uvi_logger.addHandler(file_handler)
 
     root_logger.info("=" * 70)
-    root_logger.info(f"SERVER LOGGING INITIALIZED")
+    root_logger.info("SERVER LOGGING INITIALIZED")
     root_logger.info(f"Log File: {CURRENT_LOG_FILE}")
-    root_logger.info(f"Max File Size: 3MB (Rotating)")
+    root_logger.info("Max File Size: 3MB (Rotating)")
     root_logger.info("=" * 70)
 
     return root_logger
 
+
 # Dedicated logger instance for server activity
 server_log = logging.getLogger("server")
+
 
 class RequestResponseLoggingMiddleware(BaseHTTPMiddleware):
     """
     Standard production middleware:
     Logs every incoming request, parameters, payload, latency, response code, and payload.
     """
+
     async def dispatch(self, request: Request, call_next):
         req_id = uuid.uuid4().hex[:8].upper()
         start_time = time.time()
@@ -151,8 +167,13 @@ class RequestResponseLoggingMiddleware(BaseHTTPMiddleware):
                 try:
                     # Only read small JSON responses
                     content_type = response.headers.get("content-type", "")
-                    if "application/json" in content_type and hasattr(response, "body") and response.body and len(response.body) < 4096:
-                        parsed_resp = json.loads(response.body.decode("utf-8"))
+                    if (
+                        "application/json" in content_type
+                        and hasattr(response, "body")
+                        and response.body
+                        and len(response.body) < 4096
+                    ):
+                        parsed_resp = json.loads(bytes(response.body).decode("utf-8"))
                         resp_body_preview = f"| Response: {json.dumps(mask_sensitive_data(parsed_resp))}"
                 except Exception:
                     pass
@@ -163,7 +184,7 @@ class RequestResponseLoggingMiddleware(BaseHTTPMiddleware):
                 f"OUTGOING RESPONSE [{req_id}] <- {method} {url_path} "
                 f"| Status: {response.status_code} "
                 f"| Duration: {duration_ms}ms "
-                f"{resp_body_preview}"
+                f"{resp_body_preview}",
             )
             return response
 
@@ -172,27 +193,35 @@ class RequestResponseLoggingMiddleware(BaseHTTPMiddleware):
             server_log.error(
                 f"SERVER ERROR [{req_id}] !! {method} {url_path} "
                 f"| Duration: {duration_ms}ms "
-                f"| Error: {type(exc).__name__}: {str(exc)}",
-                exc_info=True
+                f"| Error: {type(exc).__name__}: {exc!s}",
+                exc_info=True,
             )
             raise exc
 
+
 # Outgoing request & configuration logging helpers
-def log_outgoing_request(service: str, action: str, params: Optional[Dict[str, Any]] = None):
+def log_outgoing_request(service: str, action: str, params: dict[str, Any] | None = None):
     """Logs outgoing calls to external services like Zerodha Kite or Google Gemini."""
     masked_params = mask_sensitive_data(params) if params else {}
     server_log.info(f"OUTGOING CALL -> [{service}] Action: {action} | Params: {masked_params}")
 
+
 def log_outgoing_response(service: str, action: str, summary: Any, duration_ms: float):
     """Logs the response received from external services."""
     masked_summary = mask_sensitive_data(summary) if isinstance(summary, (dict, list)) else summary
-    server_log.info(f"OUTGOING RESPONSE <- [{service}] Action: {action} | Duration: {duration_ms}ms | Result: {masked_summary}")
+    server_log.info(
+        f"OUTGOING RESPONSE <- [{service}] Action: {action} | Duration: {duration_ms}ms | Result: {masked_summary}"
+    )
+
 
 def log_outgoing_error(service: str, action: str, error: Exception, duration_ms: float):
     """Logs any error from outgoing external service calls."""
-    server_log.error(f"OUTGOING ERROR !! [{service}] Action: {action} | Duration: {duration_ms}ms | Error: {type(error).__name__}: {str(error)}")
+    server_log.error(
+        f"OUTGOING ERROR !! [{service}] Action: {action} | Duration: {duration_ms}ms | Error: {type(error).__name__}: {error!s}"
+    )
 
-def log_config_saved(source: str, keys_modified: list, mode: Optional[str] = None):
+
+def log_config_saved(source: str, keys_modified: list, mode: str | None = None):
     """Logs configuration changes and settings updates."""
     mode_info = f" | Mode: {mode}" if mode else ""
     server_log.info(f"CONFIG SAVED -> Source: {source} | Keys Modified: {keys_modified}{mode_info}")

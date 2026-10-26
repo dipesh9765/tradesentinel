@@ -1,0 +1,25 @@
+# PROGRESS: tradesentinel overhaul
+
+## Baseline (audited 2026-10-26)
+- Backend: 81 pytest tests pass (38 s). Frontend: `tsc -b && vite build` OK, `oxlint` gives warnings only.
+- CI exists (pytest, build, lint) but has no type check, no backend lint/format, no coverage, no Docker build.
+
+## Findings (what an interviewer would notice)
+1. **Layout is half-migrated.** Root-level modules (`kite_executor.py` 1510 lines, `database.py`, `market_data.py`, ...) sit beside an `app/` package; `main.py`, `config.py`, `genConsts.py`, `prompts.py` at the root are shims over `app/`. Should be one proper package (`app/` with domain, services, adapters, api).
+2. **God module**: `kite_executor.py` holds the broker adapter and `UnifiedTradingEngine` (orchestration, risk, reconciliation). Split into broker adapter / risk manager / order lifecycle / reconciliation.
+3. **Frontend**: `App.tsx` is 596 lines with `react(immutability)` and `exhaustive-deps` lint warnings; no frontend tests.
+4. **No Docker / compose, no Makefile, no pre-commit**, no coverage badge, no ruff/mypy config.
+5. **Windows-only starters** (`.bat`); add cross-platform scripts.
+6. README is already strong; add a latency/perf section, an ADR folder, and a threat model.
+
+## Plan
+- [ ] A. Ruff + mypy (strict where feasible) + coverage in CI; fix findings
+- [ ] B. Restructure backend into one package; delete shims; keep tests green
+- [ ] C. Split `kite_executor.py`; add targeted tests for each part
+- [ ] D. Frontend: extract hooks from `App.tsx`, fix lint, add Vitest + Testing Library tests
+- [ ] E. Dockerfile(s) + docker-compose, Makefile, pre-commit
+- [ ] F. docs/adr/*, THREAT_MODEL.md, SECURITY.md, CONTRIBUTING.md, tag v1.0.0
+- [ ] G. Resume bullets into `../RESUME_BULLETS.md`
+
+## Decisions log
+- Work on branch `overhaul/v1`; nothing pushed without approval.
