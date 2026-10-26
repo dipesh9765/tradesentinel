@@ -102,7 +102,7 @@ The simulation enters on the **next bar's open**, assumes the **stop is hit befo
 | Data | Pandas, NumPy |
 | Storage | SQLite (WAL), Fernet-encrypted vault with PBKDF2-derived key |
 | Frontend | React 19, TypeScript, Vite, TradingView Lightweight Charts v5 |
-| Quality | Pytest (92 tests, 74% coverage), Ruff, mypy, GitHub Actions CI, oxlint, strict `tsc` |
+| Quality | Pytest (92 tests, 74% coverage), Vitest (44 tests), Ruff, mypy, GitHub Actions CI, oxlint, strict `tsc` |
 
 ## Quick start
 

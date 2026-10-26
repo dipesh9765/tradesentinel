@@ -16,7 +16,7 @@
 - [x] A. Ruff + mypy (strict where feasible) + coverage in CI; fix findings
 - [x] B. Restructure backend into one package; delete shims; keep tests green
 - [x] C. Split `kite_executor.py`; add targeted tests for each part
-- [ ] D. Frontend: extract hooks from `App.tsx`, fix lint, add Vitest + Testing Library tests
+- [x] D. Frontend: extract hooks from `App.tsx`, fix lint, add Vitest + Testing Library tests
 - [ ] E. Dockerfile(s) + docker-compose, Makefile, pre-commit
 - [ ] F. docs/adr/*, THREAT_MODEL.md, SECURITY.md, CONTRIBUTING.md, tag v1.0.0
 - [ ] G. Resume bullets into `../RESUME_BULLETS.md`
@@ -28,3 +28,4 @@
 - A: ruff/mypy/coverage added; fixed scan default-symbol bug (omitted symbol was passed as None), unchained exceptions, dangling asyncio task, TRADE_EXPLANATION prompt binding.
 - B: single `app/` package (core, db, strategy, ai, market, trading, services); shims removed; entrypoint is `app.main:app`.
 - C: `kite_executor.py` (1510 lines) split into engine + risk/session/reconciliation/monitor mixins over a typed `EngineState`, and `kite_broker`. Singleton renamed `trading_engine`. 92 tests, mypy clean.
+- D: App.tsx 596 -> ~280 lines; logic moved to hooks (useAuthSession, useLiveTradingData, useTradeActions, useCandles, useTokenHeartbeat), KiteSetupBanner extracted, `any` removed from the new code, strict tsc on, lint clean, Vitest + Testing Library (44 tests), npm audit fixed (vite advisory).
