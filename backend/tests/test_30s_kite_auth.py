@@ -1,11 +1,11 @@
 import pytest
 from fastapi.testclient import TestClient
 
-import database
-from kite_executor import kite_executor
-from main import app
-from market_data import market_data_manager
-from security import ACTIVE_SESSIONS, create_session_token, invalidate_session_token
+from app.core.security import ACTIVE_SESSIONS, create_session_token, invalidate_session_token
+from app.db import database
+from app.main import app
+from app.market.market_data import market_data_manager
+from app.trading.kite_executor import kite_executor
 
 client = TestClient(app)
 

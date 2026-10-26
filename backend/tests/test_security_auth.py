@@ -1,8 +1,8 @@
 from fastapi.testclient import TestClient
 
-import database
-from main import app
-from security import validate_session_token
+from app.core.security import validate_session_token
+from app.db import database
+from app.main import app
 
 client = TestClient(app)
 

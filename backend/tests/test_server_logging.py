@@ -2,8 +2,7 @@ import os
 
 from fastapi.testclient import TestClient
 
-from main import app
-from server_logger import (
+from app.core.server_logger import (
     CURRENT_LOG_FILE,
     LOGS_DIR,
     MAX_LOG_FILE_BYTES,
@@ -12,6 +11,7 @@ from server_logger import (
     log_outgoing_request,
     log_outgoing_response,
 )
+from app.main import app
 
 
 def test_server_logging_file_attributes_and_rotation():

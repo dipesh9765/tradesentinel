@@ -2,7 +2,7 @@
 Unit test suite for centralized prompts and dynamic '%VALUE%' placeholder substitution.
 """
 
-from prompts import INTRADAY_MARKET_SETUP_PROMPT, GenPrompts, render_prompt
+from app.core.prompts import INTRADAY_MARKET_SETUP_PROMPT, GenPrompts, render_prompt
 
 
 def test_intraday_market_setup_prompt_placeholders():

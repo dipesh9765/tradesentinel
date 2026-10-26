@@ -85,7 +85,7 @@ More detail, including the live order lifecycle and concurrency model, is in [AR
 
 ```bash
 cd backend
-python backtester.py --csv bank_nifty_5m.csv --symbol "BANK NIFTY"
+python -m app.strategy.backtester --csv bank_nifty_5m.csv --symbol "BANK NIFTY"
 ```
 
 CSV columns: `timestamp` (or `date`), `open`, `high`, `low`, `close`, `volume`. With a Kite session active you can also call `POST /api/backtest` with `{"symbol": "BANK NIFTY", "days": 30}`.
@@ -116,7 +116,7 @@ venv\Scripts\activate            # Windows   (Linux/macOS: source venv/bin/activ
 pip install -r requirements.txt
 cp .env.example .env             # optional; everything can be set in the UI
 pytest -q
-uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 ```bash

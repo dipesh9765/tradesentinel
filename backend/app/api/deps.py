@@ -5,8 +5,8 @@ FastAPI Security & Context Dependencies
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-import database
-from security import validate_session_token
+from app.core.security import validate_session_token
+from app.db import database
 
 security_scheme = HTTPBearer(auto_error=False)
 

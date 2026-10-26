@@ -7,13 +7,13 @@ from typing import Any
 from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
 
-from genConsts import GenConsts
+from app.core.genConsts import GenConsts
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parents[2]  # backend/ (holds instruments.json, trading.db, logs/)
 INSTRUMENTS_FILE = BASE_DIR / GenConsts.INSTRUMENTS_FILE_NAME
 
 

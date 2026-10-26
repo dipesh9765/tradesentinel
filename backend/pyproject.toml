@@ -19,12 +19,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["B011"]
 # StrEnum would change str() output; keep (str, Enum) to preserve serialized values.
-"core/interfaces.py" = ["UP042"]
-# Temporary re-export shims; removed in the package restructure (step B).
-"main.py" = ["F401"]
-"config.py" = ["F401"]
-"genConsts.py" = ["F401"]
-"prompts.py" = ["F401"]
+"app/core/interfaces.py" = ["UP042"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

@@ -12,11 +12,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.endpoints.websocket import active_connections
 from app.api.v1.router import api_v1_router
-from app.config import settings
+from app.core.config import settings
 from app.core.genConsts import GenConsts
-from kite_executor import kite_executor
-from market_data import market_data_manager
-from server_logger import RequestResponseLoggingMiddleware, setup_server_logging
+from app.core.server_logger import RequestResponseLoggingMiddleware, setup_server_logging
+from app.market.market_data import market_data_manager
+from app.trading.kite_executor import kite_executor
 
 # Initialize 3MB rotating server logging with timestamp
 setup_server_logging()
@@ -96,7 +96,7 @@ async def lifespan(app: FastAPI):
     FastAPI Lifespan context manager:
     Initializes background workers on startup and cleanly cancels them on shutdown.
     """
-    from scanner import opportunity_scanner
+    from app.market.scanner import opportunity_scanner
 
     logger.info("Initializing TradeSentinel background market sync & P&L monitor...")
     market_task = asyncio.create_task(background_market_worker())

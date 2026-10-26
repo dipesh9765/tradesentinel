@@ -15,11 +15,11 @@ from typing import Any
 
 import pandas as pd
 
-import ai_providers
-from core.interfaces import BaseTradeAnalyzer
-from prompts import TRADE_EXPLANATION_PROMPT, render_prompt
-from quant_strategy import quant_engine
-from trade_validation import validate_signal
+from app.ai import ai_providers
+from app.core.interfaces import BaseTradeAnalyzer
+from app.core.prompts import TRADE_EXPLANATION_PROMPT, render_prompt
+from app.strategy.quant_strategy import quant_engine
+from app.strategy.trade_validation import validate_signal
 
 logger = logging.getLogger(__name__)
 

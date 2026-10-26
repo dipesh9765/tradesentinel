@@ -9,8 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.api.deps import require_auth
-from backtester import run_backtest
-from market_data import market_data_manager
+from app.market.market_data import market_data_manager
+from app.strategy.backtester import run_backtest
 
 logger = logging.getLogger(__name__)
 

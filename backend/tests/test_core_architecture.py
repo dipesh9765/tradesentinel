@@ -3,9 +3,9 @@ Unit Tests for TradeSentinel Core Architecture Layer
 Validates the abstract base classes, paper simulation engine, and strategy decoupling.
 """
 
-from core.interfaces import BaseOrderExecutor, OrderStatus
-from core.paper_executor import PaperExecutionEngine
-from kite_executor import KiteExecutionEngine
+from app.core.interfaces import BaseOrderExecutor, OrderStatus
+from app.trading.kite_executor import KiteExecutionEngine
+from app.trading.paper_executor import PaperExecutionEngine
 
 
 def test_core_interfaces_inheritance():

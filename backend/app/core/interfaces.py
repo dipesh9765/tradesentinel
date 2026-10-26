@@ -15,7 +15,7 @@ from typing import Any
 
 import pandas as pd
 
-from genConsts import GenConsts
+from app.core.genConsts import GenConsts
 
 
 class OrderStatus:

@@ -13,7 +13,7 @@ from typing import Any
 import httpx
 from pydantic import BaseModel, Field
 
-from core.interfaces import BaseNotificationDispatcher
+from app.core.interfaces import BaseNotificationDispatcher
 
 logger = logging.getLogger(__name__)
 

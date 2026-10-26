@@ -6,8 +6,8 @@ import datetime
 
 import pytest
 
-from kite_executor import kite_executor
-from scanner import OpportunityScannerService
+from app.market.scanner import OpportunityScannerService
+from app.trading.kite_executor import kite_executor
 
 
 @pytest.fixture

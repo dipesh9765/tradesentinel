@@ -3,10 +3,10 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-import database
-from kite_executor import kite_executor
-from main import app
-from security import create_session_token, invalidate_session_token
+from app.core.security import create_session_token, invalidate_session_token
+from app.db import database
+from app.main import app
+from app.trading.kite_executor import kite_executor
 
 client = TestClient(app)
 

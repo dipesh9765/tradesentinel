@@ -14,11 +14,11 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from config import get_instrument_lot_sizes, get_kite_instrument_map, get_watchlist_symbols, settings
-from core.interfaces import BaseMarketDataProvider
-from kite_executor import kite_executor
-from server_logger import log_outgoing_error, log_outgoing_request, log_outgoing_response
-from technical_indicators import enrich_candle_indicators
+from app.core.config import get_instrument_lot_sizes, get_kite_instrument_map, get_watchlist_symbols, settings
+from app.core.interfaces import BaseMarketDataProvider
+from app.core.server_logger import log_outgoing_error, log_outgoing_request, log_outgoing_response
+from app.strategy.technical_indicators import enrich_candle_indicators
+from app.trading.kite_executor import kite_executor
 
 logger = logging.getLogger(__name__)
 

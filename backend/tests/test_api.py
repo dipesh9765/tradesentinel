@@ -1,9 +1,9 @@
 import pytest
 from fastapi.testclient import TestClient
 
-import database
-from main import app
-from security import create_session_token, invalidate_session_token
+from app.core.security import create_session_token, invalidate_session_token
+from app.db import database
+from app.main import app
 
 client = TestClient(app)
 
@@ -60,7 +60,7 @@ def test_ai_scan_requires_kite_connection(setup_auth_fixture):
 def test_ai_scan_defaults_to_first_watchlist_symbol(setup_auth_fixture, monkeypatch):
     """Regression: an omitted symbol must fall back to the watchlist, not be passed on as None."""
     from app.api.v1.endpoints import trades
-    from config import get_watchlist_symbols
+    from app.core.config import get_watchlist_symbols
 
     seen = {}
     monkeypatch.setattr(trades.kite_executor, "api_key", "k")

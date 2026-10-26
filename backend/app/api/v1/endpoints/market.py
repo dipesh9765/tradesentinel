@@ -4,12 +4,12 @@ Market Data & Quantitative Technical Analysis Endpoints
 
 from fastapi import APIRouter, Depends, Query
 
+from app.ai.trade_analyzer import trade_analyzer
 from app.api.deps import require_auth
-from app.config import settings
-from kite_executor import kite_executor
-from market_data import market_data_manager
-from notifications import notification_service
-from trade_analyzer import trade_analyzer
+from app.core.config import settings
+from app.market.market_data import market_data_manager
+from app.services.notifications import notification_service
+from app.trading.kite_executor import kite_executor
 
 router = APIRouter(tags=["Market Data"])
 

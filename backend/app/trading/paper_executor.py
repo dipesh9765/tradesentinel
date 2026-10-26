@@ -12,9 +12,9 @@ import logging
 import uuid
 from typing import Any
 
-import database
-from config import settings
-from core.interfaces import BaseOrderExecutor, OrderStatus
+from app.core.config import settings
+from app.core.interfaces import BaseOrderExecutor, OrderStatus
+from app.db import database
 
 logger = logging.getLogger(__name__)
 

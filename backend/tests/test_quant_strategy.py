@@ -6,12 +6,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from kite_executor import kite_executor
-from quant_strategy import InstitutionalQuantEngine, quant_engine
-from technical_indicators import (
+from app.strategy.quant_strategy import InstitutionalQuantEngine, quant_engine
+from app.strategy.technical_indicators import (
     calculate_cpr,
     enrich_candle_indicators,
 )
+from app.trading.kite_executor import kite_executor
 
 
 def generate_synthetic_candles(trend: str = "bullish", count: int = 50) -> pd.DataFrame:

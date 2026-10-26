@@ -20,8 +20,8 @@ from typing import Any
 
 import pandas as pd
 
-from config import is_index_symbol
-from technical_indicators import calculate_cpr, calculate_pivot_points, detect_rsi_divergence
+from app.core.config import is_index_symbol
+from app.strategy.technical_indicators import calculate_cpr, calculate_pivot_points, detect_rsi_divergence
 
 logger = logging.getLogger(__name__)
 

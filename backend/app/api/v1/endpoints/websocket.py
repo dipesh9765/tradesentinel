@@ -7,9 +7,9 @@ import logging
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
 from app.core.genConsts import GenConsts
-from kite_executor import kite_executor
-from market_data import market_data_manager
-from security import validate_session_token
+from app.core.security import validate_session_token
+from app.market.market_data import market_data_manager
+from app.trading.kite_executor import kite_executor
 
 logger = logging.getLogger(__name__)
 

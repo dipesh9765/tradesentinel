@@ -13,14 +13,14 @@ import datetime
 import logging
 from typing import Any
 
+from app.ai.trade_analyzer import trade_analyzer
 from app.api.v1.endpoints.websocket import active_connections
+from app.core.config import get_watchlist_symbols
 from app.core.genConsts import GenConsts
-from config import get_watchlist_symbols
-from kite_executor import kite_executor
-from market_data import market_data_manager
-from notifications import notification_service
-from quant_strategy import quant_engine
-from trade_analyzer import trade_analyzer
+from app.market.market_data import market_data_manager
+from app.services.notifications import notification_service
+from app.strategy.quant_strategy import quant_engine
+from app.trading.kite_executor import kite_executor
 
 logger = logging.getLogger(__name__)
 

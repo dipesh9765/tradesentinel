@@ -16,8 +16,9 @@ import os
 import sqlite3
 from typing import Any
 
-from genConsts import GenConsts
-from server_logger import log_config_saved
+from app.core.config import BASE_DIR
+from app.core.genConsts import GenConsts
+from app.core.server_logger import log_config_saved
 
 # In-memory unlocked Fernet encryption key (never persisted to disk in plaintext)
 _unlocked_encryption_key: bytes | None = None
@@ -25,7 +26,7 @@ _unlocked_encryption_key: bytes | None = None
 
 def get_db_path() -> str:
     """Returns the absolute file path to the SQLite database."""
-    return os.environ.get("TRADING_DB_PATH", os.path.join(os.path.dirname(__file__), GenConsts.DB_NAME))
+    return os.environ.get("TRADING_DB_PATH", str(BASE_DIR / GenConsts.DB_NAME))
 
 
 def get_db_connection() -> sqlite3.Connection:
@@ -544,7 +545,7 @@ def is_master_password_set() -> bool:
 
 def setup_master_password(password: str) -> None:
     """Sets initial master password and derives the master vault encryption key."""
-    from security import derive_fernet_key, hash_password
+    from app.core.security import derive_fernet_key, hash_password
 
     global _unlocked_encryption_key
 
@@ -572,7 +573,7 @@ def setup_master_password(password: str) -> None:
 
 def verify_and_unlock_master_password(password: str) -> bool:
     """Validates provided master password against PBKDF2 hash and unlocks the Fernet vault key."""
-    from security import derive_fernet_key, verify_password
+    from app.core.security import derive_fernet_key, verify_password
 
     global _unlocked_encryption_key
 
@@ -606,7 +607,7 @@ def is_vault_unlocked() -> bool:
 
 def save_secure_setting(key: str, plain_value: str) -> None:
     """Encrypts a sensitive string using Fernet and stores it in SQLite secure_vault."""
-    from security import encrypt_value
+    from app.core.security import encrypt_value
 
     global _unlocked_encryption_key
     if not _unlocked_encryption_key:
@@ -633,7 +634,7 @@ def save_secure_setting(key: str, plain_value: str) -> None:
 
 def get_secure_setting(key: str, default: str = "") -> str:
     """Decrypts a sensitive setting from the vault using the in-memory master key."""
-    from security import decrypt_value
+    from app.core.security import decrypt_value
 
     global _unlocked_encryption_key
     if not _unlocked_encryption_key:

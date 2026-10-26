@@ -7,17 +7,17 @@ import datetime
 
 import pytest
 
-import ai_providers
-from kite_executor import KiteExecutionEngine, UnifiedTradingEngine
-from trade_analyzer import TradeAnalyzer
-from trade_validation import is_option_instrument, validate_signal
+from app.ai import ai_providers
+from app.ai.trade_analyzer import TradeAnalyzer
+from app.strategy.trade_validation import is_option_instrument, validate_signal
+from app.trading.kite_executor import KiteExecutionEngine, UnifiedTradingEngine
 
 
 @pytest.fixture(autouse=True)
 def _close_leftover_positions():
     """Live-execution tests persist positions; close them so other test modules start clean."""
     yield
-    import database
+    from app.db import database
 
     conn = database.get_db_connection()
     try:
@@ -155,7 +155,7 @@ ACTIONABLE = {
 
 
 def test_analyzer_never_trades_when_quant_says_no(monkeypatch):
-    import trade_analyzer as ga
+    from app.ai import trade_analyzer as ga
 
     monkeypatch.setattr(
         ga, "quant_engine", _FakeQuant({"actionable": False, "reason": "chop", "confluence_score": 40})
@@ -169,7 +169,7 @@ def test_analyzer_never_trades_when_quant_says_no(monkeypatch):
 
 
 def test_llm_cannot_move_price_levels(monkeypatch):
-    import trade_analyzer as ga
+    from app.ai import trade_analyzer as ga
 
     monkeypatch.setattr(ga, "quant_engine", _FakeQuant(dict(ACTIONABLE)))
     monkeypatch.setattr(ai_providers, "is_configured", lambda provider=None: True)
@@ -193,7 +193,7 @@ def test_llm_cannot_move_price_levels(monkeypatch):
 
 
 def test_llm_pitch_with_correct_levels_is_used(monkeypatch):
-    import trade_analyzer as ga
+    from app.ai import trade_analyzer as ga
 
     monkeypatch.setattr(ga, "quant_engine", _FakeQuant(dict(ACTIONABLE)))
     monkeypatch.setattr(ai_providers, "is_configured", lambda provider=None: True)
@@ -210,7 +210,7 @@ def test_llm_pitch_with_correct_levels_is_used(monkeypatch):
 
 
 def test_llm_failure_falls_back_to_rule_text(monkeypatch):
-    import trade_analyzer as ga
+    from app.ai import trade_analyzer as ga
 
     monkeypatch.setattr(ga, "quant_engine", _FakeQuant(dict(ACTIONABLE)))
     monkeypatch.setattr(ai_providers, "is_configured", lambda provider=None: True)
@@ -224,7 +224,7 @@ def test_llm_failure_falls_back_to_rule_text(monkeypatch):
 
 
 def test_invalid_quant_levels_become_no_trade(monkeypatch):
-    import trade_analyzer as ga
+    from app.ai import trade_analyzer as ga
 
     bad = dict(ACTIONABLE, stop_loss=210.0)
     monkeypatch.setattr(ga, "quant_engine", _FakeQuant(bad))
@@ -463,7 +463,7 @@ def test_unconfirmed_exit_is_not_duplicated(monkeypatch):
 
 
 def test_unified_close_does_not_mark_closed_when_exit_fails(monkeypatch):
-    import database
+    from app.db import database
 
     engine = UnifiedTradingEngine()
     pos = {
@@ -527,9 +527,9 @@ def test_live_mode_never_falls_back_to_paper(monkeypatch):
 def test_ai_config_api_roundtrip():
     from fastapi.testclient import TestClient
 
-    import database
-    from main import app
-    from security import create_session_token, invalidate_session_token
+    from app.core.security import create_session_token, invalidate_session_token
+    from app.db import database
+    from app.main import app
 
     client = TestClient(app)
     if not database.is_master_password_set():
@@ -568,7 +568,7 @@ def test_ai_config_api_roundtrip():
 
 
 def _seed_closed(pnls_newest_first, minutes_ago=5, mode="PAPER"):
-    import database
+    from app.db import database
 
     conn = database.get_db_connection()
     try:
@@ -611,7 +611,7 @@ def _paper_engine():
 
 
 def test_trade_cap_blocks_new_entries(monkeypatch):
-    from config import settings
+    from app.core.config import settings
 
     monkeypatch.setattr(settings, "MAX_TRADES_PER_DAY", 3)
     _seed_closed([5.0, 5.0, 5.0])
@@ -622,7 +622,7 @@ def test_trade_cap_blocks_new_entries(monkeypatch):
 
 
 def test_loss_streak_pauses_then_resumes(monkeypatch):
-    from config import settings
+    from app.core.config import settings
 
     monkeypatch.setattr(settings, "MAX_TRADES_PER_DAY", 100)
     monkeypatch.setattr(settings, "MAX_CONSECUTIVE_LOSSES", 3)
@@ -640,7 +640,7 @@ def test_loss_streak_pauses_then_resumes(monkeypatch):
 
 
 def test_limits_are_per_mode(monkeypatch):
-    from config import settings
+    from app.core.config import settings
 
     monkeypatch.setattr(settings, "MAX_TRADES_PER_DAY", 2)
     _seed_closed([1.0, 1.0, 1.0], mode="LIVE")
@@ -651,7 +651,7 @@ def test_limits_are_per_mode(monkeypatch):
 
 
 def test_reconcile_books_positions_the_broker_already_closed(monkeypatch):
-    import database
+    from app.db import database
 
     fake = FakeKite()
     fake.positions = lambda: {"net": [{"tradingsymbol": "BANKNIFTY25OCT52000CE", "quantity": 0}]}
@@ -710,9 +710,9 @@ def test_reconcile_reports_untracked_broker_positions(monkeypatch):
 def test_login_is_throttled_after_repeated_failures():
     from fastapi.testclient import TestClient
 
-    import database
-    import security
-    from main import app
+    from app.core import security
+    from app.db import database
+    from app.main import app
 
     if not database.is_master_password_set():
         database.setup_master_password("TestMasterKey123!")
@@ -732,8 +732,8 @@ def test_login_is_throttled_after_repeated_failures():
 
 
 def test_single_settings_instance_and_instruments_file():
-    import app.config as app_config
-    import config
+    import app.core.config as app_config
+    from app.core import config
 
     assert app_config.settings is config.settings
     assert app_config.load_instruments_data() == config.load_instruments_data()

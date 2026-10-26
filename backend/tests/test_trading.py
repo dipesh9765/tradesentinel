@@ -1,11 +1,11 @@
 import pandas as pd
 
-from kite_executor import KiteTradingExecutor, OrderStatus
-from market_data import MarketDataManager
-from technical_indicators import (
+from app.ai.trade_analyzer import TradeAnalyzer
+from app.market.market_data import MarketDataManager
+from app.strategy.technical_indicators import (
     enrich_candle_indicators,
 )
-from trade_analyzer import TradeAnalyzer
+from app.trading.kite_executor import KiteTradingExecutor, OrderStatus
 
 
 def test_indicators():
@@ -105,8 +105,8 @@ def test_safety_guardrail_and_execution():
 
 def test_close_position_restored_from_db():
     """Verifies that if backend restarts and memory is cleared, positions in SQLite can still be closed."""
-    import database
-    from kite_executor import KiteTradingExecutor
+    from app.db import database
+    from app.trading.kite_executor import KiteTradingExecutor
 
     executor = KiteTradingExecutor()
 

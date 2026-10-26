@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import backtester
-from backtester import CostModel, run_backtest, summarize, walk_forward
+from app.strategy import backtester
+from app.strategy.backtester import CostModel, run_backtest, summarize, walk_forward
 
 
 def _candles(days=2, overrides=None):

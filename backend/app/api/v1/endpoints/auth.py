@@ -5,11 +5,9 @@ Authentication & Cryptographic Vault Endpoints
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials
 
-import database
+from app.ai.trade_analyzer import trade_analyzer
 from app.api.deps import require_auth, security_scheme
-from app.models.schemas import LoginRequest, SetupRequest
-from kite_executor import kite_executor
-from security import (
+from app.core.security import (
     clear_login_failures,
     create_session_token,
     invalidate_session_token,
@@ -17,7 +15,9 @@ from security import (
     register_login_failure,
     validate_session_token,
 )
-from trade_analyzer import trade_analyzer
+from app.db import database
+from app.models.schemas import LoginRequest, SetupRequest
+from app.trading.kite_executor import kite_executor
 
 router = APIRouter(tags=["Authentication"])
 

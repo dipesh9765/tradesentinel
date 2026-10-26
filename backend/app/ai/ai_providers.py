@@ -17,8 +17,8 @@ from typing import Any
 
 import httpx
 
-import database
-from config import settings
+from app.core.config import settings
+from app.db import database
 
 logger = logging.getLogger(__name__)
 

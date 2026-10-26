@@ -5,16 +5,16 @@ System Settings, Secure Vault & Broker Connectivity Endpoints
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-import ai_providers
-import database
+from app.ai import ai_providers
+from app.ai.trade_analyzer import trade_analyzer
 from app.api.deps import require_auth
-from app.config import load_instruments_data, settings
+from app.core.config import load_instruments_data, settings
+from app.core.server_logger import log_config_saved
+from app.db import database
+from app.market.market_data import market_data_manager
 from app.models.schemas import KiteSessionRequest, ModeUpdateRequest, SettingsUpdateRequest
-from kite_executor import kite_executor
-from market_data import market_data_manager
-from notifications import notification_service
-from server_logger import log_config_saved
-from trade_analyzer import trade_analyzer
+from app.services.notifications import notification_service
+from app.trading.kite_executor import kite_executor
 
 router = APIRouter(tags=["Settings"])
 

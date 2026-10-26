@@ -12,8 +12,10 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response, StreamingResponse
 
+from app.core.config import BASE_DIR
+
 # Setup logs directory inside backend
-LOGS_DIR = os.path.join(os.path.dirname(__file__), "logs")
+LOGS_DIR = str(BASE_DIR / "logs")
 os.makedirs(LOGS_DIR, exist_ok=True)
 
 # 3MB per file

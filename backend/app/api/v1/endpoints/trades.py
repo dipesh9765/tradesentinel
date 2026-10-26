@@ -7,14 +7,14 @@ import logging
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
-import database
+from app.ai.trade_analyzer import trade_analyzer
 from app.api.deps import require_auth
+from app.core.config import get_watchlist_symbols
+from app.db import database
+from app.market.market_data import market_data_manager
 from app.models.schemas import ApproveRequest, ClosePositionRequest, RejectRequest, ScanRequest
-from config import get_watchlist_symbols
-from kite_executor import kite_executor
-from market_data import market_data_manager
-from notifications import notification_service
-from trade_analyzer import trade_analyzer
+from app.services.notifications import notification_service
+from app.trading.kite_executor import kite_executor
 
 logger = logging.getLogger(__name__)
 

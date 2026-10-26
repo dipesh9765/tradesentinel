@@ -33,11 +33,11 @@ from typing import Any
 
 import pandas as pd
 
-from config import get_instrument_lot_sizes, is_index_symbol
-from exit_rules import check_exit_triggers
-from quant_strategy import quant_engine
-from technical_indicators import enrich_candle_indicators
-from trade_validation import validate_signal
+from app.core.config import get_instrument_lot_sizes, is_index_symbol
+from app.strategy.exit_rules import check_exit_triggers
+from app.strategy.quant_strategy import quant_engine
+from app.strategy.technical_indicators import enrich_candle_indicators
+from app.strategy.trade_validation import validate_signal
 
 logger = logging.getLogger(__name__)
 

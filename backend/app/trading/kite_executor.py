@@ -26,14 +26,14 @@ import time
 import uuid
 from typing import Any
 
-import database
-from config import get_tradingsymbol_map, settings
-from core.interfaces import BaseOrderExecutor, OrderStatus
-from core.paper_executor import PaperExecutionEngine
-from exit_rules import check_exit_triggers
-from security import has_active_session
-from server_logger import log_outgoing_error, log_outgoing_request, log_outgoing_response
-from trade_validation import is_option_instrument, validate_signal
+from app.core.config import get_tradingsymbol_map, settings
+from app.core.interfaces import BaseOrderExecutor, OrderStatus
+from app.core.security import has_active_session
+from app.core.server_logger import log_outgoing_error, log_outgoing_request, log_outgoing_response
+from app.db import database
+from app.strategy.exit_rules import check_exit_triggers
+from app.strategy.trade_validation import is_option_instrument, validate_signal
+from app.trading.paper_executor import PaperExecutionEngine
 
 logger = logging.getLogger(__name__)
 
@@ -1117,7 +1117,7 @@ class UnifiedTradingEngine:
             current = self.kite_engine.get_option_ltp(proposal["instrument"])
             limit = self.MAX_ENTRY_DRIFT_PCT_OPTION
         else:
-            from market_data import market_data_manager
+            from app.market.market_data import market_data_manager
 
             current = float(market_data_manager.get_quote(proposal["symbol"]).get("ltp") or 0.0)
             limit = self.MAX_ENTRY_DRIFT_PCT_EQUITY
