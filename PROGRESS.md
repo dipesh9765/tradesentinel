@@ -13,9 +13,9 @@
 6. README is already strong; add a latency/perf section, an ADR folder, and a threat model.
 
 ## Plan
-- [ ] A. Ruff + mypy (strict where feasible) + coverage in CI; fix findings
-- [ ] B. Restructure backend into one package; delete shims; keep tests green
-- [ ] C. Split `kite_executor.py`; add targeted tests for each part
+- [x] A. Ruff + mypy (strict where feasible) + coverage in CI; fix findings
+- [x] B. Restructure backend into one package; delete shims; keep tests green
+- [x] C. Split `kite_executor.py`; add targeted tests for each part
 - [ ] D. Frontend: extract hooks from `App.tsx`, fix lint, add Vitest + Testing Library tests
 - [ ] E. Dockerfile(s) + docker-compose, Makefile, pre-commit
 - [ ] F. docs/adr/*, THREAT_MODEL.md, SECURITY.md, CONTRIBUTING.md, tag v1.0.0
@@ -23,3 +23,8 @@
 
 ## Decisions log
 - Work on branch `overhaul/v1`; nothing pushed without approval.
+
+## Log
+- A: ruff/mypy/coverage added; fixed scan default-symbol bug (omitted symbol was passed as None), unchained exceptions, dangling asyncio task, TRADE_EXPLANATION prompt binding.
+- B: single `app/` package (core, db, strategy, ai, market, trading, services); shims removed; entrypoint is `app.main:app`.
+- C: `kite_executor.py` (1510 lines) split into engine + risk/session/reconciliation/monitor mixins over a typed `EngineState`, and `kite_broker`. Singleton renamed `trading_engine`. 92 tests, mypy clean.

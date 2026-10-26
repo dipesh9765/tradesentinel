@@ -7,7 +7,7 @@ import datetime
 import pytest
 
 from app.market.scanner import OpportunityScannerService
-from app.trading.kite_executor import kite_executor
+from app.trading.engine import trading_engine
 
 
 @pytest.fixture
@@ -39,7 +39,7 @@ def test_scanner_skips_when_position_open(scanner):
         "status": "OPEN",
         "instrument": "BANKNIFTY 51200 CE",
     }
-    kite_executor.positions["POS-AUTO-1"] = pos
+    trading_engine.positions["POS-AUTO-1"] = pos
 
     # In single scan, should return None due to active position
     import asyncio
@@ -48,7 +48,7 @@ def test_scanner_skips_when_position_open(scanner):
     assert res is None
 
     # Cleanup
-    kite_executor.positions.pop("POS-AUTO-1", None)
+    trading_engine.positions.pop("POS-AUTO-1", None)
 
 
 def test_scanner_start_stop(scanner):

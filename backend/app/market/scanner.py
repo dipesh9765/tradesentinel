@@ -20,7 +20,7 @@ from app.core.genConsts import GenConsts
 from app.market.market_data import market_data_manager
 from app.services.notifications import notification_service
 from app.strategy.quant_strategy import quant_engine
-from app.trading.kite_executor import kite_executor
+from app.trading.engine import trading_engine
 
 logger = logging.getLogger(__name__)
 
@@ -83,17 +83,17 @@ class OpportunityScannerService:
             return None
 
         # 1. Single-Loss 45-Minute Lockout Check
-        is_locked, remaining = kite_executor.is_in_loss_lockout(symbol, cooldown_minutes=45)
+        is_locked, remaining = trading_engine.is_in_loss_lockout(symbol, cooldown_minutes=45)
         if is_locked:
             logger.debug(f"{symbol} is in 45-minute Loss Lockout ({remaining}m remaining). Skipping scan.")
             return None
 
         # Check if symbol already has an open position or pending proposal
-        for pos in kite_executor.positions.values():
+        for pos in trading_engine.positions.values():
             if pos.get("symbol") == symbol and pos.get("status") == "OPEN":
                 return None  # Already in an active trade for this symbol
 
-        for prop in kite_executor.pending_proposals.values():
+        for prop in trading_engine.pending_proposals.values():
             if prop.get("symbol") == symbol and prop.get("status") == GenConsts.STATUS_PENDING_APPROVAL:
                 return None  # Already awaiting approval
 
@@ -138,7 +138,7 @@ class OpportunityScannerService:
         if not signal.get("actionable"):
             return None
         try:
-            proposal = kite_executor.create_trade_proposal(signal)
+            proposal = trading_engine.create_trade_proposal(signal)
         except ValueError as e:
             logger.info(f"Scanner proposal for {symbol} rejected: {e}")
             return None
@@ -178,7 +178,7 @@ class OpportunityScannerService:
         # 15:15 IST Auto-Squareoff Check
         now = datetime.datetime.now()
         if now.hour == 15 and now.minute >= 15:
-            kite_executor.auto_square_off_mis_positions()
+            trading_engine.auto_square_off_mis_positions()
 
         symbols = get_watchlist_symbols()
         for symbol in symbols:

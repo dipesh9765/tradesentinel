@@ -14,7 +14,7 @@ from app.db import database
 from app.market.market_data import market_data_manager
 from app.models.schemas import KiteSessionRequest, ModeUpdateRequest, SettingsUpdateRequest
 from app.services.notifications import notification_service
-from app.trading.kite_executor import kite_executor
+from app.trading.engine import trading_engine
 
 router = APIRouter(tags=["Settings"])
 
@@ -52,7 +52,7 @@ def get_settings():
         "gemini_active": bool(trade_analyzer.client),
         "ai_provider": ai_providers.get_active_provider(),
         "ai_active": ai_providers.is_configured(),
-        "kite_active": kite_executor.is_authenticated(),
+        "kite_active": trading_engine.is_authenticated(),
     }
 
 
@@ -151,8 +151,8 @@ def update_settings(req: SettingsUpdateRequest):
         clean_api_key = req.kite_api_key.strip()
         database.save_secure_setting("KITE_API_KEY", clean_api_key)
         settings.KITE_API_KEY = clean_api_key
-        kite_executor.api_key = clean_api_key
-        kite_executor._init_kite()
+        trading_engine.api_key = clean_api_key
+        trading_engine._init_kite()
 
     if req.kite_api_secret:
         clean_secret = req.kite_api_secret.strip()
@@ -163,16 +163,16 @@ def update_settings(req: SettingsUpdateRequest):
         clean_token = req.kite_access_token.strip()
         database.save_secure_setting("KITE_ACCESS_TOKEN", clean_token)
         settings.KITE_ACCESS_TOKEN = clean_token
-        kite_executor.access_token = clean_token
-        kite_executor.kite_engine.access_token = clean_token
-        if kite_executor.kite_client:
-            kite_executor.kite_client.set_access_token(clean_token)
-        elif kite_executor.api_key:
-            kite_executor._init_kite()
+        trading_engine.access_token = clean_token
+        trading_engine.kite_engine.access_token = clean_token
+        if trading_engine.kite_client:
+            trading_engine.kite_client.set_access_token(clean_token)
+        elif trading_engine.api_key:
+            trading_engine._init_kite()
 
     if req.trading_mode in ["PAPER", "LIVE"]:
         settings.TRADING_MODE = req.trading_mode
-        kite_executor.mode = req.trading_mode
+        trading_engine.mode = req.trading_mode
         database.save_secure_setting("TRADING_MODE", req.trading_mode)
 
     notification_service.update_config(
@@ -210,9 +210,9 @@ def update_settings(req: SettingsUpdateRequest):
 
     return {
         "success": True,
-        "mode": kite_executor.mode,
+        "mode": trading_engine.mode,
         "gemini_active": bool(trade_analyzer.client),
-        "kite_active": kite_executor.is_authenticated(),
+        "kite_active": trading_engine.is_authenticated(),
         "office_mode": notification_service.config.office_mode,
     }
 
@@ -220,14 +220,14 @@ def update_settings(req: SettingsUpdateRequest):
 @router.get("/api/kite/login-url", dependencies=[Depends(require_auth)])
 def get_kite_login_url():
     """Generates Zerodha OAuth login URL."""
-    return {"login_url": kite_executor.get_login_url()}
+    return {"login_url": trading_engine.get_login_url()}
 
 
 @router.post("/api/kite/session", dependencies=[Depends(require_auth)])
 def generate_kite_session(req: KiteSessionRequest):
     """Exchanges OAuth request token for Zerodha daily access token and stores in vault."""
     try:
-        session = kite_executor.set_session(req.request_token)
+        session = trading_engine.set_session(req.request_token)
         log_config_saved("api/kite/session", ["KITE_ACCESS_TOKEN"])
         market_data_manager.refresh_live_quotes()
         return {"success": True, "session": session}
@@ -241,7 +241,7 @@ def get_kite_balance():
     Fetches real-time authentic Zerodha Kite account margins and remaining balance.
     Returns available cash, margin, utilised funds, and connection status.
     """
-    return kite_executor.get_kite_margins()
+    return trading_engine.get_kite_margins()
 
 
 @router.post("/api/settings/mode", dependencies=[Depends(require_auth)])
@@ -252,7 +252,7 @@ def update_trading_mode(req: ModeUpdateRequest):
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid mode. Must be 'PAPER' or 'LIVE'."
         )
     settings.TRADING_MODE = req.trading_mode
-    kite_executor.mode = req.trading_mode
+    trading_engine.mode = req.trading_mode
     database.save_secure_setting("TRADING_MODE", req.trading_mode)
     log_config_saved("api/settings/mode", ["TRADING_MODE"], req.trading_mode)
     return {"success": True, "trading_mode": req.trading_mode}

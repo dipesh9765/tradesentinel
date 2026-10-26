@@ -10,7 +10,8 @@ import pytest
 from app.ai import ai_providers
 from app.ai.trade_analyzer import TradeAnalyzer
 from app.strategy.trade_validation import is_option_instrument, validate_signal
-from app.trading.kite_executor import KiteExecutionEngine, UnifiedTradingEngine
+from app.trading.engine import UnifiedTradingEngine
+from app.trading.kite_broker import KiteExecutionEngine
 
 
 @pytest.fixture(autouse=True)

@@ -1,11 +1,12 @@
 import pandas as pd
 
 from app.ai.trade_analyzer import TradeAnalyzer
+from app.core.interfaces import OrderStatus
 from app.market.market_data import MarketDataManager
 from app.strategy.technical_indicators import (
     enrich_candle_indicators,
 )
-from app.trading.kite_executor import KiteTradingExecutor, OrderStatus
+from app.trading.engine import UnifiedTradingEngine
 
 
 def test_indicators():
@@ -62,7 +63,7 @@ def test_analyzer_returns_no_trade_without_data():
 
 
 def test_safety_guardrail_and_execution():
-    executor = KiteTradingExecutor()
+    executor = UnifiedTradingEngine()
     executor.mode = "PAPER"
 
     fake_signal = {
@@ -106,9 +107,9 @@ def test_safety_guardrail_and_execution():
 def test_close_position_restored_from_db():
     """Verifies that if backend restarts and memory is cleared, positions in SQLite can still be closed."""
     from app.db import database
-    from app.trading.kite_executor import KiteTradingExecutor
+    from app.trading.engine import UnifiedTradingEngine
 
-    executor = KiteTradingExecutor()
+    executor = UnifiedTradingEngine()
 
     # Insert an open position directly into database
     test_pos = {

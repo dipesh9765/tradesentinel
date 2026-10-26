@@ -63,8 +63,8 @@ def test_ai_scan_defaults_to_first_watchlist_symbol(setup_auth_fixture, monkeypa
     from app.core.config import get_watchlist_symbols
 
     seen = {}
-    monkeypatch.setattr(trades.kite_executor, "api_key", "k")
-    monkeypatch.setattr(trades.kite_executor, "access_token", "t")
+    monkeypatch.setattr(trades.trading_engine, "api_key", "k")
+    monkeypatch.setattr(trades.trading_engine, "access_token", "t")
     monkeypatch.setattr(trades.market_data_manager, "get_quote", lambda s: seen.setdefault("quote", s) and {})
     monkeypatch.setattr(
         trades.trade_analyzer,

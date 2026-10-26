@@ -18,7 +18,7 @@ from app.core.config import get_instrument_lot_sizes, get_kite_instrument_map, g
 from app.core.interfaces import BaseMarketDataProvider
 from app.core.server_logger import log_outgoing_error, log_outgoing_request, log_outgoing_response
 from app.strategy.technical_indicators import enrich_candle_indicators
-from app.trading.kite_executor import kite_executor
+from app.trading.engine import trading_engine
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class MarketDataManager(BaseMarketDataProvider):
         core.interfaces.BaseMarketDataProvider
 
     Uses:
-        - kite_executor.KiteTradingExecutor: Broker authentication and outbound request guards.
+        - trading_engine.UnifiedTradingEngine: Broker authentication and outbound request guards.
         - technical_indicators.enrich_candle_indicators: Quantitative feature engineering.
         - server_logger: Low-overhead outgoing call auditing.
     """
@@ -71,7 +71,7 @@ class MarketDataManager(BaseMarketDataProvider):
         Returns:
             bool: True if valid Kite session exists, False otherwise.
         """
-        return kite_executor.is_authenticated()
+        return trading_engine.is_authenticated()
 
     # -------------------------------------------------------------------------
     # Live Quote Refresh Pipeline (SRP decomposed)
@@ -122,7 +122,7 @@ class MarketDataManager(BaseMarketDataProvider):
             return False
 
         try:
-            kite_executor.verify_outgoing_kite_request()
+            trading_engine.verify_outgoing_kite_request()
         except PermissionError as pe:
             self.is_live = False
             self.status_message = str(pe)
@@ -130,11 +130,11 @@ class MarketDataManager(BaseMarketDataProvider):
             return False
 
         try:
-            kite = kite_executor.kite_client
+            kite = trading_engine.kite_client
             instruments = list(KITE_INSTRUMENT_MAP.values())
 
             # Dynamically include active position instruments for real-time derivative tick pricing
-            for pos in kite_executor.positions.values():
+            for pos in trading_engine.positions.values():
                 inst = pos.get("instrument", "").replace(" MIS", "").replace(" CNC", "").strip()
                 if inst:
                     clean_tag = inst.replace(" ", "")
@@ -227,7 +227,7 @@ class MarketDataManager(BaseMarketDataProvider):
 
     def _check_kite_session_prerequisites(self) -> dict[str, Any] | None:
         """Checks whether Kite credentials, token, and session are properly configured."""
-        if not kite_executor.api_key:
+        if not trading_engine.api_key:
             return {
                 "candles": [],
                 "status": "KITE_SESSION_NOT_INITIALIZED",
@@ -235,7 +235,7 @@ class MarketDataManager(BaseMarketDataProvider):
                 "error_detail": "Please add your Kite API Key and Secret in Settings.",
             }
 
-        if not kite_executor.access_token:
+        if not trading_engine.access_token:
             return {
                 "candles": [],
                 "status": "KITE_SESSION_NOT_INITIALIZED",
@@ -270,10 +270,10 @@ class MarketDataManager(BaseMarketDataProvider):
     ) -> tuple[pd.DataFrame | None, str | None]:
         """Fetches 5-minute historical candle bars from Zerodha Kite Connect."""
         try:
-            kite_executor.verify_outgoing_kite_request()
+            trading_engine.verify_outgoing_kite_request()
             now = datetime.datetime.now()
             from_date = now - datetime.timedelta(days=5)
-            candles_raw = kite_executor.kite_client.historical_data(
+            candles_raw = trading_engine.kite_client.historical_data(
                 instrument_token=instrument_token, from_date=from_date, to_date=now, interval="5minute"
             )
 
@@ -329,9 +329,9 @@ class MarketDataManager(BaseMarketDataProvider):
         token = self._resolve_instrument_token(symbol)
         if not token:
             raise ValueError(f"Unknown instrument '{symbol}' or no live quote to resolve its token.")
-        kite_executor.verify_outgoing_kite_request()
+        trading_engine.verify_outgoing_kite_request()
         now = datetime.datetime.now()
-        raw = kite_executor.kite_client.historical_data(
+        raw = trading_engine.kite_client.historical_data(
             instrument_token=token,
             from_date=now - datetime.timedelta(days=days),
             to_date=now,
@@ -370,7 +370,7 @@ class MarketDataManager(BaseMarketDataProvider):
 
         # 3. Remote data retrieval
         kite_broker_error = None
-        if instrument_token and kite_executor.kite_client:
+        if instrument_token and trading_engine.kite_client:
             _, kite_broker_error = self._fetch_raw_kite_candles(symbol, instrument_token)
 
         df = self.candles_data.get(symbol, pd.DataFrame())

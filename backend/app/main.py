@@ -16,7 +16,7 @@ from app.core.config import settings
 from app.core.genConsts import GenConsts
 from app.core.server_logger import RequestResponseLoggingMiddleware, setup_server_logging
 from app.market.market_data import market_data_manager
-from app.trading.kite_executor import kite_executor
+from app.trading.engine import trading_engine
 
 # Initialize 3MB rotating server logging with timestamp
 setup_server_logging()
@@ -35,7 +35,7 @@ async def periodic_30s_token_verification_worker() -> None:
     """
     while True:
         try:
-            kite_executor.verify_auth_token_now()
+            trading_engine.verify_auth_token_now()
         except Exception as e:
             logger.error(f"Error in 30s token verification worker: {e}")
         await asyncio.sleep(30.0)
@@ -53,13 +53,13 @@ async def background_market_worker() -> None:
             # Once per Kite session: compare tracked LIVE positions with the broker's, so anything that
             # closed while this app was offline (e.g. the broker-side stop fired) is booked correctly.
             if (
-                kite_executor.mode == "LIVE"
-                and kite_executor.is_authenticated()
-                and kite_executor.access_token != reconciled_token
+                trading_engine.mode == "LIVE"
+                and trading_engine.is_authenticated()
+                and trading_engine.access_token != reconciled_token
             ):
-                reconciled_token = kite_executor.access_token
+                reconciled_token = trading_engine.access_token
                 try:
-                    report = await asyncio.to_thread(kite_executor.reconcile_live_positions)
+                    report = await asyncio.to_thread(trading_engine.reconcile_live_positions)
                     logger.info(f"Startup position reconcile: {report}")
                 except Exception as e:
                     logger.error(f"Startup position reconcile failed: {e}")
@@ -67,7 +67,7 @@ async def background_market_worker() -> None:
             if market_data_manager.is_configured():
                 updated = market_data_manager.refresh_live_quotes()
                 if updated:
-                    kite_executor.update_positions_pnl(market_data_manager.live_prices)
+                    trading_engine.update_positions_pnl(market_data_manager.live_prices)
 
             # Broadcast live quotes to all connected authenticated WebSocket clients
             if active_connections:
@@ -76,8 +76,8 @@ async def background_market_worker() -> None:
                     "is_live": market_data_manager.is_live,
                     "status_message": market_data_manager.status_message,
                     "quotes": market_data_manager.get_all_quotes(),
-                    "portfolio": kite_executor.get_portfolio_summary(),
-                    "positions": list(kite_executor.positions.values()),
+                    "portfolio": trading_engine.get_portfolio_summary(),
+                    "positions": list(trading_engine.positions.values()),
                 }
                 for ws in list(active_connections):
                     try:

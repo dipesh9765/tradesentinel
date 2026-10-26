@@ -9,7 +9,7 @@ from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from app.core.genConsts import GenConsts
 from app.core.security import validate_session_token
 from app.market.market_data import market_data_manager
-from app.trading.kite_executor import kite_executor
+from app.trading.engine import trading_engine
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +41,8 @@ async def websocket_live_feed(websocket: WebSocket, token: str | None = Query(No
                 "is_live": market_data_manager.is_live,
                 "status_message": market_data_manager.status_message,
                 "quotes": market_data_manager.get_all_quotes(),
-                "portfolio": kite_executor.get_portfolio_summary(),
-                "positions": list(kite_executor.positions.values()),
+                "portfolio": trading_engine.get_portfolio_summary(),
+                "positions": list(trading_engine.positions.values()),
             }
         )
         while True:

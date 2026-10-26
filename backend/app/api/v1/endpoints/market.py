@@ -9,7 +9,7 @@ from app.api.deps import require_auth
 from app.core.config import settings
 from app.market.market_data import market_data_manager
 from app.services.notifications import notification_service
-from app.trading.kite_executor import kite_executor
+from app.trading.engine import trading_engine
 
 router = APIRouter(tags=["Market Data"])
 
@@ -24,14 +24,14 @@ def get_system_status():
         "mode": settings.TRADING_MODE,
         "trading_mode": settings.TRADING_MODE,
         "default_lot_size": settings.DEFAULT_LOT_SIZE,
-        "kite_connected": kite_executor.is_authenticated(),
-        "kite_active": kite_executor.is_authenticated(),
-        "kite_verified": getattr(kite_executor.kite_engine, "_is_token_verified", False),
+        "kite_connected": trading_engine.is_authenticated(),
+        "kite_active": trading_engine.is_authenticated(),
+        "kite_verified": getattr(trading_engine.kite_engine, "_is_token_verified", False),
         "gemini_active": bool(trade_analyzer.client),
         "vault_unlocked": True,
         "is_market_live": market_data_manager.is_live,
         "market_status_message": market_data_manager.status_message,
-        "portfolio": kite_executor.get_portfolio_summary(),
+        "portfolio": trading_engine.get_portfolio_summary(),
         "office_mode": notification_service.config.office_mode,
     }
 

@@ -17,7 +17,7 @@ from app.core.security import (
 )
 from app.db import database
 from app.models.schemas import LoginRequest, SetupRequest
-from app.trading.kite_executor import kite_executor
+from app.trading.engine import trading_engine
 
 router = APIRouter(tags=["Authentication"])
 
@@ -45,7 +45,7 @@ def setup_master_password_endpoint(req: SetupRequest):
             status_code=status.HTTP_400_BAD_REQUEST, detail="Master password must be at least 6 characters."
         )
     database.setup_master_password(req.password)
-    kite_executor.load_credentials()
+    trading_engine.load_credentials()
     trade_analyzer.load_credentials()
     token = create_session_token()
     return {
@@ -76,7 +76,7 @@ def login_master_password(req: LoginRequest, request: Request):
         register_login_failure(client_key)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect master password.")
     clear_login_failures(client_key)
-    kite_executor.load_credentials()
+    trading_engine.load_credentials()
     trade_analyzer.load_credentials()
     token = create_session_token()
     return {"success": True, "token": token, "message": "Master password verified. Security vault unlocked."}
@@ -94,5 +94,5 @@ def logout_endpoint(credentials: HTTPAuthorizationCredentials | None = Depends(s
 @router.get("/api/auth/verify", dependencies=[Depends(require_auth)])
 def verify_auth_token_endpoint():
     """Returns real-time verification of session and 30-second Kite token check status."""
-    token_status = kite_executor.verify_auth_token_now()
+    token_status = trading_engine.verify_auth_token_now()
     return {"authenticated": True, "session_valid": True, "kite_token_check": token_status}

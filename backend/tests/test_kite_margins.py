@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from app.core.security import create_session_token, invalidate_session_token
 from app.db import database
 from app.main import app
-from app.trading.kite_executor import kite_executor
+from app.trading.engine import trading_engine
 
 client = TestClient(app)
 
@@ -23,8 +23,8 @@ def setup_auth_fixture():
 def test_get_kite_balance_unauthenticated(setup_auth_fixture):
     token = setup_auth_fixture
     # When kite is not connected / no access token
-    kite_executor.access_token = ""
-    kite_executor.kite_engine.access_token = ""
+    trading_engine.access_token = ""
+    trading_engine.kite_engine.access_token = ""
 
     response = client.get("/api/kite/balance", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200
@@ -59,13 +59,13 @@ def test_get_kite_balance_success(setup_auth_fixture, monkeypatch):
         },
     }
 
-    kite_executor.access_token = "mock_access_token_123"
-    kite_executor.kite_engine.access_token = "mock_access_token_123"
-    kite_executor.kite_engine.kite_client = mock_kite
+    trading_engine.access_token = "mock_access_token_123"
+    trading_engine.kite_engine.access_token = "mock_access_token_123"
+    trading_engine.kite_engine.kite_client = mock_kite
 
     # Monkeypatch verify_outgoing_kite_request to bypass remote ping in tests
-    monkeypatch.setattr(kite_executor.kite_engine, "verify_outgoing_kite_request", lambda: True)
-    monkeypatch.setattr(kite_executor, "is_authenticated", lambda: True)
+    monkeypatch.setattr(trading_engine.kite_engine, "verify_outgoing_kite_request", lambda: True)
+    monkeypatch.setattr(trading_engine, "is_authenticated", lambda: True)
 
     response = client.get("/api/kite/balance", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200

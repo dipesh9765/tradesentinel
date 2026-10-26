@@ -4,7 +4,7 @@ Validates the abstract base classes, paper simulation engine, and strategy decou
 """
 
 from app.core.interfaces import BaseOrderExecutor, OrderStatus
-from app.trading.kite_executor import KiteExecutionEngine
+from app.trading.kite_broker import KiteExecutionEngine
 from app.trading.paper_executor import PaperExecutionEngine
 
 
