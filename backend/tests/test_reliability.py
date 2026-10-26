@@ -568,6 +568,33 @@ def test_ai_config_api_roundtrip():
 # --------------------------------------------------------------------------- discipline limits
 
 
+FROZEN_NOW = datetime.datetime(2026, 10, 26, 12, 0, 0)
+
+
+@pytest.fixture
+def frozen_clock(monkeypatch):
+    """Pin "now" inside the risk module to midday so day-boundary tests cannot flake near midnight."""
+    import types
+
+    from app.trading import risk
+
+    class _DateTime(datetime.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return FROZEN_NOW
+
+    class _Date(datetime.date):
+        @classmethod
+        def today(cls):
+            return FROZEN_NOW.date()
+
+    monkeypatch.setattr(
+        risk,
+        "datetime",
+        types.SimpleNamespace(datetime=_DateTime, date=_Date, timedelta=datetime.timedelta),
+    )
+
+
 def _seed_closed(pnls_newest_first, minutes_ago=5, mode="PAPER"):
     from app.db import database
 
@@ -577,7 +604,7 @@ def _seed_closed(pnls_newest_first, minutes_ago=5, mode="PAPER"):
         conn.commit()
     finally:
         conn.close()
-    base = datetime.datetime.now() - datetime.timedelta(minutes=minutes_ago)
+    base = FROZEN_NOW - datetime.timedelta(minutes=minutes_ago)
     for n, pnl in enumerate(reversed(pnls_newest_first)):
         closed = (base - datetime.timedelta(minutes=len(pnls_newest_first) - n)).strftime("%Y-%m-%d %H:%M:%S")
         database.save_position(
@@ -611,6 +638,7 @@ def _paper_engine():
     return engine
 
 
+@pytest.mark.usefixtures("frozen_clock")
 def test_trade_cap_blocks_new_entries(monkeypatch):
     from app.core.config import settings
 
@@ -622,6 +650,7 @@ def test_trade_cap_blocks_new_entries(monkeypatch):
     _paper_engine()._check_trading_limits()  # one slot left: allowed
 
 
+@pytest.mark.usefixtures("frozen_clock")
 def test_loss_streak_pauses_then_resumes(monkeypatch):
     from app.core.config import settings
 
@@ -640,6 +669,7 @@ def test_loss_streak_pauses_then_resumes(monkeypatch):
     _paper_engine()._check_trading_limits()
 
 
+@pytest.mark.usefixtures("frozen_clock")
 def test_limits_are_per_mode(monkeypatch):
     from app.core.config import settings
 

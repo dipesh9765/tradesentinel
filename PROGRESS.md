@@ -18,8 +18,8 @@
 - [x] C. Split `kite_executor.py`; add targeted tests for each part
 - [x] D. Frontend: extract hooks from `App.tsx`, fix lint, add Vitest + Testing Library tests
 - [x] E. Dockerfile(s) + docker-compose, Makefile, pre-commit
-- [ ] F. docs/adr/*, THREAT_MODEL.md, SECURITY.md, CONTRIBUTING.md, tag v1.0.0
-- [ ] G. Resume bullets into `../RESUME_BULLETS.md`
+- [x] F. docs/adr/*, THREAT_MODEL.md, SECURITY.md, CONTRIBUTING.md, tag v1.0.0
+- [x] G. Resume bullets into `../RESUME_BULLETS.md`
 
 ## Decisions log
 - Work on branch `overhaul/v1`; nothing pushed without approval.
@@ -30,3 +30,12 @@
 - C: `kite_executor.py` (1510 lines) split into engine + risk/session/reconciliation/monitor mixins over a typed `EngineState`, and `kite_broker`. Singleton renamed `trading_engine`. 92 tests, mypy clean.
 - D: App.tsx 596 -> ~280 lines; logic moved to hooks (useAuthSession, useLiveTradingData, useTradeActions, useCandles, useTokenHeartbeat), KiteSetupBanner extracted, `any` removed from the new code, strict tsc on, lint clean, Vitest + Testing Library (44 tests), npm audit fixed (vite advisory).
 - E: /healthz + /readyz probes, CORS_EXTRA_ORIGINS, VITE_API_BASE_URL (same-origin mode), backend+frontend Dockerfiles (non-root, healthchecks), nginx proxy, docker-compose, Makefile, pre-commit, CI docker smoke job. NOTE: Docker is not installed on this machine, so images are built/verified only by the CI docker job; the server itself was smoke-tested locally with uvicorn.
+- F: 5 ADRs, THREAT_MODEL (flags PBKDF2 100k iterations as a known gap), SECURITY, CONTRIBUTING, CHANGELOG, frontend README rewritten.
+- Found and fixed a latent midnight-flaky test (risk-limit tests used wall-clock time).
+- G: resume bullets written in ../RESUME_BULLETS.md.
+
+## Open items for the user
+- Docker images are only built in CI (no Docker on this machine); confirm the first CI run is green after pushing.
+- Screenshots in docs/screenshots predate the refactor; the UI is unchanged but re-capture if you want a GIF.
+- Optional: raise PBKDF2 iterations with a versioned hash format (ADR 0004).
+- Nothing is pushed. Branch: overhaul/v1.

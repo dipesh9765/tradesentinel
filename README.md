@@ -102,7 +102,7 @@ The simulation enters on the **next bar's open**, assumes the **stop is hit befo
 | Data | Pandas, NumPy |
 | Storage | SQLite (WAL), Fernet-encrypted vault with PBKDF2-derived key |
 | Frontend | React 19, TypeScript, Vite, TradingView Lightweight Charts v5 |
-| Quality | Pytest (92 tests, 74% coverage), Vitest (44 tests), Ruff, mypy, GitHub Actions CI, oxlint, strict `tsc` |
+| Quality | Pytest (95 tests, 74% coverage), Vitest (44 tests), Ruff, mypy, GitHub Actions CI, oxlint, strict `tsc` |
 
 ## Run with Docker
 
@@ -184,12 +184,21 @@ backend/app/
                         kite_broker (live adapter), paper_executor (simulator)
   db/                   SQLite repository layer
   services/             notifications (browser, Telegram, Discord, Slack)
-backend/tests/          92 tests (fake Kite client for the live order lifecycle)
+backend/tests/          95 tests (fake Kite client for the live order lifecycle)
 frontend/src/
   features/             auth, market (chart, watchlist), trading, settings, voice
   services/             API client, speech, sound, notifications
 .github/workflows/      CI: ruff, mypy, pytest + coverage gate, frontend build and lint
 ```
+
+## Documentation
+
+| Doc | What it covers |
+| :-- | :-- |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Components, order lifecycle, concurrency model |
+| [docs/adr](docs/adr) | Why the key decisions were made (rules vs LLM, approval and broker-side stop, shared backtest code, vault, package layout) |
+| [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) | Assets, threats, mitigations and residual risk |
+| [SECURITY.md](SECURITY.md), [CONTRIBUTING.md](CONTRIBUTING.md), [CHANGELOG.md](CHANGELOG.md) | Reporting, workflow, history |
 
 ## Known limitations
 
