@@ -2,7 +2,10 @@ import type { Quote, Candle, TradeProposal, Position, OrderRecord, PortfolioSumm
 import { GenConsts } from "../constants";
 
 const CURRENT_HOST = typeof window !== "undefined" && window.location ? (window.location.hostname || "127.0.0.1") : "127.0.0.1";
-const API_BASE = `http://${CURRENT_HOST}:8000`;
+// VITE_API_BASE_URL overrides the backend origin. Set it to an empty string for same-origin deployments
+// (e.g. behind the bundled nginx proxy); when unset, the dev default is the current host on port 8000.
+const configuredBase = import.meta.env.VITE_API_BASE_URL as string | undefined;
+const API_BASE = configuredBase !== undefined ? configuredBase.replace(/\/$/, "") : `http://${CURRENT_HOST}:8000`;
 const TOKEN_KEY = GenConsts.STORAGE_KEYS.AUTH_TOKEN;
 
 let onUnauthorizedCallback: (() => void) | null = null;
@@ -339,7 +342,8 @@ export function subscribeToLiveTicks(onMessage: (data: any) => void): () => void
     if (!token) return;
 
     const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${wsProtocol}//${CURRENT_HOST}:8000/ws/live?token=${encodeURIComponent(token)}`;
+    const wsHost = API_BASE ? new URL(API_BASE).host : window.location.host;
+    const wsUrl = `${wsProtocol}//${wsHost}/ws/live?token=${encodeURIComponent(token)}`;
     ws = new WebSocket(wsUrl);
 
     ws.onmessage = (event) => {

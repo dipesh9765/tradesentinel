@@ -91,6 +91,9 @@ class Settings(BaseSettings):
     DEFAULT_PRODUCT: str = GenConsts.DEFAULT_PRODUCT  # Intraday
     INITIAL_PAPER_CAPITAL: float = GenConsts.INITIAL_PAPER_CAPITAL  # ₹1,00,000 for paper testing
 
+    # Extra browser origins allowed by CORS (comma separated), e.g. a deployed frontend URL.
+    CORS_EXTRA_ORIGINS: str = os.getenv("CORS_EXTRA_ORIGINS", "")
+
     # Dynamic Intraday Trading Instruments loaded from instruments.json
     WATCHLIST_SYMBOLS: list[str] = get_watchlist_symbols()
 

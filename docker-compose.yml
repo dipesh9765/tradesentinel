@@ -1,0 +1,25 @@
+services:
+  backend:
+    build: ./backend
+    environment:
+      # PAPER mode needs no credentials. Everything else is managed in the encrypted vault via the UI.
+      TRADING_MODE: ${TRADING_MODE:-PAPER}
+      CORS_EXTRA_ORIGINS: ${CORS_EXTRA_ORIGINS:-}
+    volumes:
+      - sentinel-data:/data
+    restart: unless-stopped
+    # Reachable from the host only; the frontend container proxies to it on the compose network.
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:80"
+    restart: unless-stopped
+
+volumes:
+  sentinel-data:

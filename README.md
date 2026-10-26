@@ -104,6 +104,17 @@ The simulation enters on the **next bar's open**, assumes the **stop is hit befo
 | Frontend | React 19, TypeScript, Vite, TradingView Lightweight Charts v5 |
 | Quality | Pytest (92 tests, 74% coverage), Vitest (44 tests), Ruff, mypy, GitHub Actions CI, oxlint, strict `tsc` |
 
+## Run with Docker
+
+```bash
+docker compose up --build
+# UI: http://127.0.0.1:8080   API docs: http://127.0.0.1:8000/docs
+```
+
+The compose stack runs the API as an unprivileged user with a persistent volume for the SQLite database,
+and serves the built UI through nginx, which proxies `/api` and `/ws` to the backend (same origin, no CORS needed).
+Probes: `GET /healthz` (liveness) and `GET /readyz` (database reachable). PAPER mode is the default.
+
 ## Quick start
 
 Requirements: Python 3.11+, Node 20+. A Zerodha Kite Connect account is optional; PAPER mode needs no credentials.
@@ -118,6 +129,8 @@ cp .env.example .env             # optional; everything can be set in the UI
 pytest -q
 uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
+
+`make help` lists shortcuts (`make check` runs everything CI runs).
 
 ```bash
 # Frontend (second terminal)

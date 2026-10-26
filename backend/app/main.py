@@ -160,6 +160,7 @@ def create_app() -> FastAPI:
             "http://127.0.0.1:3000",
             "http://localhost:8000",
             "http://127.0.0.1:8000",
+            *[o.strip() for o in settings.CORS_EXTRA_ORIGINS.split(",") if o.strip()],
         ],
         allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|100\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|.*\.ts\.net)(:[0-9]+)?$",
         allow_credentials=True,

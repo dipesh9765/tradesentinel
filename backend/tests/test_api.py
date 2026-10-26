@@ -74,3 +74,28 @@ def test_ai_scan_defaults_to_first_watchlist_symbol(setup_auth_fixture, monkeypa
     resp = client.post("/api/ai/scan", headers={"Authorization": f"Bearer {setup_auth_fixture}"}, json={})
     assert resp.status_code == 409
     assert seen["quote"] == seen["analyze"] == get_watchlist_symbols()[0]
+
+
+def test_liveness_probe_is_public():
+    resp = client.get("/healthz")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok"}
+
+
+def test_readiness_probe_reports_database_and_version():
+    resp = client.get("/readyz")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "ready"
+    assert body["database"] == "ok"
+    assert body["version"]
+
+
+def test_readiness_probe_fails_closed_when_database_is_down(monkeypatch):
+    def broken():
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(database, "get_db_connection", broken)
+    resp = client.get("/readyz")
+    assert resp.status_code == 503
+    assert resp.json()["status"] == "unavailable"
