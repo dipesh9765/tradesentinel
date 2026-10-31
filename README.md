@@ -39,8 +39,8 @@ Captured from a fresh install in PAPER mode with no broker connected, so the ter
 
 | Principle | How it is enforced |
 | :-- | :-- |
-| Rules decide, the LLM explains | `trade_analyzer.py` takes every level from the rules engine; if the LLM's spoken pitch quotes different prices, it is discarded |
-| Never trade a malformed signal | `trade_validation.py` checks level ordering, stop distance and risk-reward before a proposal can be created |
+| Rules decide, the LLM explains | `ai/trade_analyzer.py` takes every level from the rules engine; if the LLM's spoken pitch quotes different prices, it is discarded |
+| Never trade a malformed signal | `strategy/trade_validation.py` checks level ordering, stop distance and risk-reward before a proposal can be created |
 | A position is only "closed" when the broker says so | Live exits place a real order, wait for confirmation, and never send a second exit while one is unresolved |
 | Fail safe, not silent | LIVE mode refuses to fall back to paper; if a protective stop cannot be placed, the position is flattened immediately |
 | Discipline over opportunity | Daily loss limit, trades-per-day cap, and a timed pause after consecutive losses, all counted from the database so restarts do not reset them |
@@ -79,13 +79,13 @@ More detail, including the live order lifecycle and concurrency model, is in [AR
 | Entry slippage guard | 1% equity / 5% options | blocks the trade |
 | Broker-side stop-loss | every live entry | trails with the software stop |
 | Auto square-off | 15:15 IST | |
-| Login throttling | 5 failures, 60 s lockout | `security.py` |
+| Login throttling | 5 failures, 60 s lockout | `core/security.py` |
 
 ## Backtesting
 
 ```bash
 cd backend
-python backtester.py --csv bank_nifty_5m.csv --symbol "BANK NIFTY"
+python -m app.strategy.backtester --csv bank_nifty_5m.csv --symbol "BANK NIFTY"
 ```
 
 CSV columns: `timestamp` (or `date`), `open`, `high`, `low`, `close`, `volume`. With a Kite session active you can also call `POST /api/backtest` with `{"symbol": "BANK NIFTY", "days": 30}`.
@@ -102,7 +102,18 @@ The simulation enters on the **next bar's open**, assumes the **stop is hit befo
 | Data | Pandas, NumPy |
 | Storage | SQLite (WAL), Fernet-encrypted vault with PBKDF2-derived key |
 | Frontend | React 19, TypeScript, Vite, TradingView Lightweight Charts v5 |
-| Quality | Pytest (81 tests), GitHub Actions CI, oxlint, strict `tsc` |
+| Quality | Pytest (95 tests, 74% coverage), Vitest (44 tests), Ruff, mypy, GitHub Actions CI, oxlint, strict `tsc` |
+
+## Run with Docker
+
+```bash
+docker compose up --build
+# UI: http://127.0.0.1:8080   API docs: http://127.0.0.1:8000/docs
+```
+
+The compose stack runs the API as an unprivileged user with a persistent volume for the SQLite database,
+and serves the built UI through nginx, which proxies `/api` and `/ws` to the backend (same origin, no CORS needed).
+Probes: `GET /healthz` (liveness) and `GET /readyz` (database reachable). PAPER mode is the default.
 
 ## Quick start
 
@@ -116,8 +127,10 @@ venv\Scripts\activate            # Windows   (Linux/macOS: source venv/bin/activ
 pip install -r requirements.txt
 cp .env.example .env             # optional; everything can be set in the UI
 pytest -q
-uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
+
+`make help` lists shortcuts (`make check` runs everything CI runs).
 
 ```bash
 # Frontend (second terminal)
@@ -160,24 +173,32 @@ Interactive docs are served at `/docs`. Everything except auth bootstrap require
 ## Project structure
 
 ```
-backend/
-  app/                  FastAPI package: routers (api/v1/endpoints), schemas, lifespan workers
-  core/                 Interfaces (executor, analyzer, provider) and the paper executor
-  quant_strategy.py     Multi-factor rules engine
-  exit_rules.py         Stop / target / trailing logic shared by live and backtest
-  trade_validation.py   Signal sanity checks
-  trade_analyzer.py     Rules-gated analyzer; LLM writes the explanation only
-  ai_providers.py       Gemini / OpenAI / Anthropic gateway
-  kite_executor.py      Live and unified trading engines, risk limits, reconciliation
-  backtester.py         Cost-aware replay of the live rules
-  market_data.py        Kite quotes and candle ingestion
-  security.py, database.py, server_logger.py, notifications.py, scanner.py
-  tests/                81 tests (fake Kite client for the live order lifecycle)
+backend/app/
+  main.py               App factory, middleware, lifespan workers
+  api/v1/endpoints/     Thin HTTP + WebSocket layer (auth, market, trades, settings, backtest)
+  core/                 config, constants, prompts, security (vault, sessions), logging, interfaces
+  strategy/             quant_strategy, technical_indicators, exit_rules, trade_validation, backtester
+  ai/                   ai_providers (Gemini / OpenAI / Anthropic), trade_analyzer (rules-gated)
+  market/               market_data (Kite quotes + candles), scanner
+  trading/              engine (orchestrator), risk, session, reconciliation, monitor,
+                        kite_broker (live adapter), paper_executor (simulator)
+  db/                   SQLite repository layer
+  services/             notifications (browser, Telegram, Discord, Slack)
+backend/tests/          95 tests (fake Kite client for the live order lifecycle)
 frontend/src/
   features/             auth, market (chart, watchlist), trading, settings, voice
   services/             API client, speech, sound, notifications
-.github/workflows/      CI: backend tests, frontend build and lint
+.github/workflows/      CI: ruff, mypy, pytest + coverage gate, frontend build and lint
 ```
+
+## Documentation
+
+| Doc | What it covers |
+| :-- | :-- |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Components, order lifecycle, concurrency model |
+| [docs/adr](docs/adr) | Why the key decisions were made (rules vs LLM, approval and broker-side stop, shared backtest code, vault, package layout) |
+| [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) | Assets, threats, mitigations and residual risk |
+| [SECURITY.md](SECURITY.md), [CONTRIBUTING.md](CONTRIBUTING.md), [CHANGELOG.md](CHANGELOG.md) | Reporting, workflow, history |
 
 ## Known limitations
 

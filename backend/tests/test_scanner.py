@@ -2,13 +2,12 @@
 Unit Tests for Autonomous Market Opportunity Scanner - TradeSentinel
 """
 
-import pytest
 import datetime
-from unittest.mock import AsyncMock, patch
 
-from scanner import OpportunityScannerService
-from app.core.genConsts import GenConsts
-from kite_executor import kite_executor
+import pytest
+
+from app.market.scanner import OpportunityScannerService
+from app.trading.engine import trading_engine
 
 
 @pytest.fixture
@@ -38,17 +37,18 @@ def test_scanner_skips_when_position_open(scanner):
         "position_id": "POS-AUTO-1",
         "symbol": symbol,
         "status": "OPEN",
-        "instrument": "BANKNIFTY 51200 CE"
+        "instrument": "BANKNIFTY 51200 CE",
     }
-    kite_executor.positions["POS-AUTO-1"] = pos
+    trading_engine.positions["POS-AUTO-1"] = pos
 
     # In single scan, should return None due to active position
     import asyncio
+
     res = asyncio.run(scanner.scan_single_symbol(symbol))
     assert res is None
 
     # Cleanup
-    kite_executor.positions.pop("POS-AUTO-1", None)
+    trading_engine.positions.pop("POS-AUTO-1", None)
 
 
 def test_scanner_start_stop(scanner):

@@ -1,13 +1,12 @@
 import pytest
 from fastapi.testclient import TestClient
-import database
-from security import create_session_token, invalidate_session_token
-from main import app
-from config import settings
-from kite_executor import kite_executor
-from market_data import market_data_manager
+
+from app.core.security import create_session_token, invalidate_session_token
+from app.db import database
+from app.main import app
 
 client = TestClient(app)
+
 
 @pytest.fixture(autouse=True)
 def setup_auth_fixture():
@@ -18,6 +17,7 @@ def setup_auth_fixture():
     yield token
     invalidate_session_token(token)
 
+
 def test_api_status(setup_auth_fixture):
     token = setup_auth_fixture
     response = client.get("/api/status", headers={"Authorization": f"Bearer {token}"})
@@ -25,6 +25,7 @@ def test_api_status(setup_auth_fixture):
     data = response.json()
     assert data["status"] == "ONLINE"
     assert "portfolio" in data
+
 
 def test_api_quotes(setup_auth_fixture):
     token = setup_auth_fixture
@@ -35,6 +36,7 @@ def test_api_quotes(setup_auth_fixture):
     symbols = [q["symbol"] for q in quotes]
     assert "BANK NIFTY" in symbols
 
+
 def test_api_candles_unconfigured(setup_auth_fixture):
     token = setup_auth_fixture
     response = client.get("/api/market/candles?symbol=NIFTY 50", headers={"Authorization": f"Bearer {token}"})
@@ -44,9 +46,56 @@ def test_api_candles_unconfigured(setup_auth_fixture):
     # When unconfigured, does not fabricate dummy candles
     assert isinstance(data["candles"], list)
 
+
 def test_ai_scan_requires_kite_connection(setup_auth_fixture):
     token = setup_auth_fixture
     # Without real Kite connection, scan should block with 400
-    scan_resp = client.post("/api/ai/scan", headers={"Authorization": f"Bearer {token}"}, json={"symbol": "NIFTY 50"})
+    scan_resp = client.post(
+        "/api/ai/scan", headers={"Authorization": f"Bearer {token}"}, json={"symbol": "NIFTY 50"}
+    )
     assert scan_resp.status_code == 400
     assert "Zerodha Kite Connect is not configured" in scan_resp.json()["detail"]
+
+
+def test_ai_scan_defaults_to_first_watchlist_symbol(setup_auth_fixture, monkeypatch):
+    """Regression: an omitted symbol must fall back to the watchlist, not be passed on as None."""
+    from app.api.v1.endpoints import trades
+    from app.core.config import get_watchlist_symbols
+
+    seen = {}
+    monkeypatch.setattr(trades.trading_engine, "api_key", "k")
+    monkeypatch.setattr(trades.trading_engine, "access_token", "t")
+    monkeypatch.setattr(trades.market_data_manager, "get_quote", lambda s: seen.setdefault("quote", s) and {})
+    monkeypatch.setattr(
+        trades.trade_analyzer,
+        "analyze_market_setup",
+        lambda s, q, df: seen.setdefault("analyze", s) and {"actionable": False, "reason": "x"},
+    )
+    resp = client.post("/api/ai/scan", headers={"Authorization": f"Bearer {setup_auth_fixture}"}, json={})
+    assert resp.status_code == 409
+    assert seen["quote"] == seen["analyze"] == get_watchlist_symbols()[0]
+
+
+def test_liveness_probe_is_public():
+    resp = client.get("/healthz")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok"}
+
+
+def test_readiness_probe_reports_database_and_version():
+    resp = client.get("/readyz")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "ready"
+    assert body["database"] == "ok"
+    assert body["version"]
+
+
+def test_readiness_probe_fails_closed_when_database_is_down(monkeypatch):
+    def broken():
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(database, "get_db_connection", broken)
+    resp = client.get("/readyz")
+    assert resp.status_code == 503
+    assert resp.json()["status"] == "unavailable"

@@ -3,10 +3,12 @@ V1 API Router Aggregator
 """
 
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, market, trades, settings, websocket, backtest
+
+from app.api.v1.endpoints import auth, backtest, health, market, settings, trades, websocket
 
 api_v1_router = APIRouter()
 
+api_v1_router.include_router(health.router)
 api_v1_router.include_router(auth.router)
 api_v1_router.include_router(market.router)
 api_v1_router.include_router(trades.router)

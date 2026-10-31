@@ -45,7 +45,7 @@ class SpeechService {
           if (this.isListening) {
             try {
               this.recognition.start();
-            } catch (e) {
+            } catch {
               // Ignore already running errors
             }
           }
@@ -107,7 +107,7 @@ class SpeechService {
     if (this.recognition) {
       try {
         this.recognition.start();
-      } catch (e) {
+      } catch {
         // Recognition might already be running
       }
     }
@@ -118,7 +118,7 @@ class SpeechService {
     if (this.recognition) {
       try {
         this.recognition.stop();
-      } catch (e) {
+      } catch {
         // Ignore
       }
     }

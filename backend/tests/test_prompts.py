@@ -2,12 +2,7 @@
 Unit test suite for centralized prompts and dynamic '%VALUE%' placeholder substitution.
 """
 
-from prompts import (
-    INTRADAY_MARKET_SETUP_PROMPT,
-    MARKET_SENTIMENT_ANALYSIS_PROMPT,
-    render_prompt,
-    GenPrompts
-)
+from app.core.prompts import INTRADAY_MARKET_SETUP_PROMPT, GenPrompts, render_prompt
 
 
 def test_intraday_market_setup_prompt_placeholders():
@@ -40,7 +35,7 @@ def test_intraday_market_setup_prompt_placeholders():
         put_option="NIFTY 24850 PE",
         confluence_score=85,
         quant_direction="BULLISH",
-        factor_findings="Supertrend and EMA alignment"
+        factor_findings="Supertrend and EMA alignment",
     )
 
     # Check that placeholders were replaced
@@ -69,7 +64,7 @@ def test_market_sentiment_analysis_prompt():
         market_trend="BULLISH",
         advance_decline="32/18",
         india_vix=14.2,
-        sector_movers="NIFTY AUTO, NIFTY IT"
+        sector_movers="NIFTY AUTO, NIFTY IT",
     )
 
     assert "%MARKET_TREND%" not in rendered

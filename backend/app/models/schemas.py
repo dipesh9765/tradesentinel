@@ -2,7 +2,6 @@
 Pydantic Request & Response Data Transfer Objects (DTOs)
 """
 
-from typing import Optional
 from pydantic import BaseModel, Field
 
 
@@ -15,7 +14,10 @@ class LoginRequest(BaseModel):
 
 
 class ScanRequest(BaseModel):
-    symbol: Optional[str] = Field(default=None, description="Underlying symbol to scan. Defaults dynamically to the first configured watchlist instrument if omitted.")
+    symbol: str | None = Field(
+        default=None,
+        description="Underlying symbol to scan. Defaults dynamically to the first configured watchlist instrument if omitted.",
+    )
 
 
 class ApproveRequest(BaseModel):
@@ -24,7 +26,7 @@ class ApproveRequest(BaseModel):
 
 class RejectRequest(BaseModel):
     proposal_id: str = Field(..., description="Proposal ID to reject")
-    reason: Optional[str] = Field(default="User declined", description="Rejection rationale")
+    reason: str | None = Field(default="User declined", description="Rejection rationale")
 
 
 class ClosePositionRequest(BaseModel):
@@ -32,16 +34,16 @@ class ClosePositionRequest(BaseModel):
 
 
 class SettingsUpdateRequest(BaseModel):
-    kite_api_key: Optional[str] = None
-    kite_api_secret: Optional[str] = None
-    kite_access_token: Optional[str] = None
-    gemini_api_key: Optional[str] = None
-    trading_mode: Optional[str] = None  # "PAPER" or "LIVE"
-    telegram_bot_token: Optional[str] = None
-    telegram_chat_id: Optional[str] = None
-    discord_webhook_url: Optional[str] = None
-    slack_webhook_url: Optional[str] = None
-    office_mode: Optional[bool] = None
+    kite_api_key: str | None = None
+    kite_api_secret: str | None = None
+    kite_access_token: str | None = None
+    gemini_api_key: str | None = None
+    trading_mode: str | None = None  # "PAPER" or "LIVE"
+    telegram_bot_token: str | None = None
+    telegram_chat_id: str | None = None
+    discord_webhook_url: str | None = None
+    slack_webhook_url: str | None = None
+    office_mode: bool | None = None
 
 
 class ModeUpdateRequest(BaseModel):

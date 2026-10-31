@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import backtester
-from backtester import CostModel, run_backtest, summarize, walk_forward
+from app.strategy import backtester
+from app.strategy.backtester import CostModel, run_backtest, summarize, walk_forward
 
 
 def _candles(days=2, overrides=None):
@@ -17,9 +17,17 @@ def _candles(days=2, overrides=None):
     for d in range(days):
         for b in range(75):
             t = start + datetime.timedelta(days=d, minutes=5 * b)
-            o, h, l, c = (overrides or {}).get((d, b), (100.0, 100.5, 99.5, 100.0))
-            rows.append({"timestamp": t.strftime("%Y-%m-%d %H:%M:%S"), "open": o, "high": h, "low": l,
-                         "close": c, "volume": 1000})
+            o, h, lo, c = (overrides or {}).get((d, b), (100.0, 100.5, 99.5, 100.0))
+            rows.append(
+                {
+                    "timestamp": t.strftime("%Y-%m-%d %H:%M:%S"),
+                    "open": o,
+                    "high": h,
+                    "low": lo,
+                    "close": c,
+                    "volume": 1000,
+                }
+            )
     return pd.DataFrame(rows)
 
 
@@ -34,8 +42,15 @@ class _OneShotEngine:
         if not self.fired and len(df) == self.at_len:
             self.fired = True
             e, s, t1, t2 = self.levels
-            return {"actionable": True, "signal_type": "BUY_EQUITY", "entry_price": e, "stop_loss": s,
-                    "target_1": t1, "target_2": t2, "confluence_score": 80}
+            return {
+                "actionable": True,
+                "signal_type": "BUY_EQUITY",
+                "entry_price": e,
+                "stop_loss": s,
+                "target_1": t1,
+                "target_2": t2,
+                "confluence_score": 80,
+            }
         return {"actionable": False}
 
 
@@ -45,11 +60,11 @@ def _run(monkeypatch, df, engine, **kw):
 
 
 def test_stop_loss_exit_is_a_net_loss(monkeypatch):
-    df = _candles(overrides={(0, 41): (100.0, 100.2, 98.5, 99.0)})   # entry bar dives through the stop
+    df = _candles(overrides={(0, 41): (100.0, 100.2, 98.5, 99.0)})  # entry bar dives through the stop
     res = _run(monkeypatch, df, _OneShotEngine(at_len=41))
     t = res["trades"][0]
     assert t["exit_reason"] == "STOP_LOSS_HIT"
-    assert t["gross_pnl"] < 0 and t["net_pnl"] < t["gross_pnl"]       # costs make it worse
+    assert t["gross_pnl"] < 0 and t["net_pnl"] < t["gross_pnl"]  # costs make it worse
     assert t["net_pnl"] == pytest.approx(t["gross_pnl"] - t["charges"], abs=0.02)
 
 
@@ -71,8 +86,8 @@ def test_stop_checked_before_target_within_a_bar(monkeypatch):
 def test_entry_is_next_bar_open_not_signal_close(monkeypatch):
     df = _candles(overrides={(0, 41): (100.4, 100.6, 100.2, 100.5)})
     t = _run(monkeypatch, df, _OneShotEngine(at_len=41, stop=99.4, t1=102.4, t2=103.4))["trades"][0]
-    assert t["entry_time"].endswith("12:40:00")              # bar 41, not the signal bar 40
-    assert t["entry_price"] >= 100.4                          # filled at that bar's open (+ slippage)
+    assert t["entry_time"].endswith("12:40:00")  # bar 41, not the signal bar 40
+    assert t["entry_price"] >= 100.4  # filled at that bar's open (+ slippage)
 
 
 def test_open_trade_is_squared_off_at_1515(monkeypatch):
@@ -82,7 +97,7 @@ def test_open_trade_is_squared_off_at_1515(monkeypatch):
 
 
 def test_no_entries_late_in_the_session(monkeypatch):
-    res = _run(monkeypatch, _candles(), _OneShotEngine(at_len=70))   # bar 69 = 15:00, past the 14:45 cutoff
+    res = _run(monkeypatch, _candles(), _OneShotEngine(at_len=70))  # bar 69 = 15:00, past the 14:45 cutoff
     assert res["summary"]["trades"] == 0
 
 
@@ -97,12 +112,14 @@ def test_cost_model():
 
 
 def test_summary_metrics_and_walk_forward():
-    trades = [{"net_pnl": x, "charges": 10.0, "r_multiple": x / 100, "entry_time": f"d{i}", "exit_time": f"d{i}"}
-              for i, x in enumerate([200, -100, -100, 300, -100, 100])]
+    trades = [
+        {"net_pnl": x, "charges": 10.0, "r_multiple": x / 100, "entry_time": f"d{i}", "exit_time": f"d{i}"}
+        for i, x in enumerate([200, -100, -100, 300, -100, 100])
+    ]
     s = summarize(trades)
     assert s["trades"] == 6 and s["win_rate_pct"] == 50.0
     assert s["net_pnl"] == 300 and s["profit_factor"] == pytest.approx(600 / 300)
-    assert s["max_drawdown"] == 200                      # equity 200 -> 0 is the deepest fall from a peak
+    assert s["max_drawdown"] == 200  # equity 200 -> 0 is the deepest fall from a peak
     assert s["longest_losing_streak"] == 2
     folds = walk_forward(trades, folds=3)
     assert [f["trades"] for f in folds] == [2, 2, 2]
@@ -126,14 +143,21 @@ def test_real_engine_smoke_on_trending_data():
             t = start + datetime.timedelta(days=d, minutes=5 * b)
             o = price
             price = price + drift + rng.normal(0, 12)
-            rows.append({"timestamp": t.strftime("%Y-%m-%d %H:%M:%S"), "open": o,
-                         "high": max(o, price) + abs(rng.normal(0, 6)), "low": min(o, price) - abs(rng.normal(0, 6)),
-                         "close": price, "volume": int(rng.integers(800, 3000))})
+            rows.append(
+                {
+                    "timestamp": t.strftime("%Y-%m-%d %H:%M:%S"),
+                    "open": o,
+                    "high": max(o, price) + abs(rng.normal(0, 6)),
+                    "low": min(o, price) - abs(rng.normal(0, 6)),
+                    "close": price,
+                    "volume": int(rng.integers(800, 3000)),
+                }
+            )
     res = run_backtest(pd.DataFrame(rows), "RELIANCE", lot_size=10, max_trades_per_day=2)
     per_day = {}
     for t in res["trades"]:
         per_day[t["entry_time"][:10]] = per_day.get(t["entry_time"][:10], 0) + 1
-        assert t["entry_time"][11:16] >= "09:30"            # never trades the opening range
+        assert t["entry_time"][11:16] >= "09:30"  # never trades the opening range
         assert t["net_pnl"] == pytest.approx(t["gross_pnl"] - t["charges"], abs=0.02)
     assert all(v <= 2 for v in per_day.values())
     assert res["trading_days"] == 12

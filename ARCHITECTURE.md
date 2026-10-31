@@ -50,17 +50,22 @@ flowchart TB
 | :-- | :-- |
 | `app/main.py` | App factory, CORS, request-audit middleware, lifespan that starts and cancels the background workers |
 | `app/api/v1/endpoints/*` | Thin HTTP layer: auth, market, trades, settings, backtest, websocket |
-| `quant_strategy.py` | The rules engine. Pure function of candles + quote: returns actionable setup with levels, or `NO_TRADE` with a reason |
-| `trade_validation.py` | Pure checks on any signal: level ordering, stop distance, minimum risk-reward, option-label detection |
-| `trade_analyzer.py` | Calls the rules engine, validates, then optionally asks the LLM for wording. Never lets the LLM alter numbers |
-| `ai_providers.py` | One function, `generate_json`, over Gemini / OpenAI / Anthropic. Provider, model and keys are read from the vault on every call |
-| `exit_rules.py` | Stop, target and three-tier trailing logic. One pure function used by both live and backtest |
-| `kite_executor.py` | `KiteExecutionEngine` (broker adapter) and `UnifiedTradingEngine` (orchestration, risk limits, reconciliation) |
-| `core/paper_executor.py` | Simulated fills with a virtual balance |
-| `core/interfaces.py` | Abstract contracts so brokers, data feeds and analyzers can be swapped |
-| `backtester.py` | Replays candles through the same rules and exits, with costs |
-| `market_data.py` | Quote polling, candle fetch, indicator enrichment (`technical_indicators.py`) |
-| `security.py`, `database.py` | Key derivation, encryption, sessions, login throttling, repository layer |
+| `app/strategy/quant_strategy.py` | The rules engine. Pure function of candles + quote: returns actionable setup with levels, or `NO_TRADE` with a reason |
+| `app/strategy/trade_validation.py` | Pure checks on any signal: level ordering, stop distance, minimum risk-reward, option-label detection |
+| `app/ai/trade_analyzer.py` | Calls the rules engine, validates, then optionally asks the LLM for wording. Never lets the LLM alter numbers |
+| `app/ai/ai_providers.py` | One function, `generate_json`, over Gemini / OpenAI / Anthropic. Provider, model and keys are read from the vault on every call |
+| `app/strategy/exit_rules.py` | Stop, target and three-tier trailing logic. One pure function used by both live and backtest |
+| `app/trading/engine.py` | `UnifiedTradingEngine`: proposal lifecycle, approvals, closes. Composed from the four components below |
+| `app/trading/risk.py` | Loss lockout, daily trade cap, loss-streak pause, entry-drift (slippage) guard |
+| `app/trading/session.py` | Broker credential lifecycle: vault load, login URL, session exchange, margins |
+| `app/trading/reconciliation.py` | Re-syncs local positions with the broker after restarts or manual exits |
+| `app/trading/monitor.py` | Mark-to-market P&L, trailing stops, exit triggers, portfolio summary |
+| `app/trading/kite_broker.py` | `KiteExecutionEngine`: the live Zerodha adapter (entry, broker-side stop, confirmed exit) |
+| `app/trading/paper_executor.py` | Simulated fills with a virtual balance |
+| `app/core/interfaces.py` | Abstract contracts so brokers, data feeds and analyzers can be swapped |
+| `app/strategy/backtester.py` | Replays candles through the same rules and exits, with costs |
+| `app/market/market_data.py` | Quote polling, candle fetch, indicator enrichment (`strategy/technical_indicators.py`) |
+| `app/core/security.py`, `app/db/database.py` | Key derivation, encryption, sessions, login throttling, repository layer |
 
 ## 3. From signal to order
 

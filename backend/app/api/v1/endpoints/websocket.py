@@ -3,27 +3,27 @@ Real-time WebSocket Streaming Feed Endpoint
 """
 
 import logging
-from typing import List, Optional
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 
-from security import validate_session_token
-from market_data import market_data_manager
-from kite_executor import kite_executor
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+
 from app.core.genConsts import GenConsts
+from app.core.security import validate_session_token
+from app.market.market_data import market_data_manager
+from app.trading.engine import trading_engine
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Streaming"])
 
-active_connections: List[WebSocket] = []
+active_connections: list[WebSocket] = []
 
 
-def get_active_connections() -> List[WebSocket]:
+def get_active_connections() -> list[WebSocket]:
     return active_connections
 
 
 @router.websocket("/ws/live")
-async def websocket_live_feed(websocket: WebSocket, token: Optional[str] = Query(None)):
+async def websocket_live_feed(websocket: WebSocket, token: str | None = Query(None)):
     """
     Protected WebSocket feed: Verifies master password session token before accepting connection.
     Streams market ticks and portfolio updates every 2 seconds.
@@ -35,14 +35,16 @@ async def websocket_live_feed(websocket: WebSocket, token: Optional[str] = Query
     await websocket.accept()
     active_connections.append(websocket)
     try:
-        await websocket.send_json({
-            "type": GenConsts.WS_EVENT_INIT,
-            "is_live": market_data_manager.is_live,
-            "status_message": market_data_manager.status_message,
-            "quotes": market_data_manager.get_all_quotes(),
-            "portfolio": kite_executor.get_portfolio_summary(),
-            "positions": list(kite_executor.positions.values())
-        })
+        await websocket.send_json(
+            {
+                "type": GenConsts.WS_EVENT_INIT,
+                "is_live": market_data_manager.is_live,
+                "status_message": market_data_manager.status_message,
+                "quotes": market_data_manager.get_all_quotes(),
+                "portfolio": trading_engine.get_portfolio_summary(),
+                "positions": list(trading_engine.positions.values()),
+            }
+        )
         while True:
             data = await websocket.receive_text()
             logger.info(f"WebSocket client sent: {data}")

@@ -2,21 +2,16 @@
 Unit Tests for Institutional Quantitative Strategy Engine & Real-Time P&L - TradeSentinel
 """
 
-import pytest
-import pandas as pd
 import numpy as np
+import pandas as pd
+import pytest
 
-from technical_indicators import (
+from app.strategy.quant_strategy import InstitutionalQuantEngine, quant_engine
+from app.strategy.technical_indicators import (
     calculate_cpr,
-    calculate_supertrend,
-    calculate_adx,
-    calculate_vwap_bands,
     enrich_candle_indicators,
-    detect_rsi_divergence
 )
-from quant_strategy import quant_engine, InstitutionalQuantEngine
-from trade_analyzer import trade_analyzer
-from kite_executor import kite_executor
+from app.trading.engine import trading_engine
 
 
 def generate_synthetic_candles(trend: str = "bullish", count: int = 50) -> pd.DataFrame:
@@ -38,14 +33,16 @@ def generate_synthetic_candles(trend: str = "bullish", count: int = 50) -> pd.Da
         open_p = (high + low) / 2.0
         volume = int(np.random.uniform(5000, 25000))
 
-        records.append({
-            "timestamp": f"2026-09-17 09:{i:02d}:00",
-            "open": open_p,
-            "high": high,
-            "low": low,
-            "close": close,
-            "volume": volume
-        })
+        records.append(
+            {
+                "timestamp": f"2026-09-17 09:{i:02d}:00",
+                "open": open_p,
+                "high": high,
+                "low": low,
+                "close": close,
+                "volume": volume,
+            }
+        )
 
     df = pd.DataFrame(records)
     return enrich_candle_indicators(df)
@@ -54,7 +51,7 @@ def generate_synthetic_candles(trend: str = "bullish", count: int = 50) -> pd.Da
 def test_cpr_calculation():
     """Validates Central Pivot Range (CPR - TC, Pivot, BC) mathematics and regimes."""
     cpr = calculate_cpr(high=24600.0, low=24400.0, close=24550.0)
-    
+
     expected_pivot = (24600.0 + 24400.0 + 24550.0) / 3.0
     expected_bc = (24600.0 + 24400.0) / 2.0
     expected_tc = (expected_pivot - expected_bc) + expected_pivot
@@ -69,7 +66,7 @@ def test_cpr_calculation():
 def test_supertrend_and_adx_indicators():
     """Validates Supertrend (10,3) and ADX (14) indicator computation."""
     df = generate_synthetic_candles("bullish", count=40)
-    
+
     assert "supertrend" in df.columns
     assert "supertrend_direction" in df.columns
     assert "adx_14" in df.columns
@@ -88,7 +85,9 @@ def test_strike_resolution():
     assert strike == 24850
     assert inst == "NIFTY 24850 CE"
 
-    strike_pe, inst_pe = InstitutionalQuantEngine.resolve_optimal_strike("BANK NIFTY", 51270.0, is_bullish=False)
+    strike_pe, inst_pe = InstitutionalQuantEngine.resolve_optimal_strike(
+        "BANK NIFTY", 51270.0, is_bullish=False
+    )
     assert strike_pe == 51300
     assert "BANKNIFTY 51300 PE" in inst_pe
 
@@ -135,25 +134,25 @@ def test_trailing_stop_loss():
         "target_2": 150.0,
         "current_ltp": 100.0,
         "unrealized_pnl": 0.0,
-        "pnl_pct": 0.0
+        "pnl_pct": 0.0,
     }
 
     # At entry (price = 103.0, +3% gain < 6%), SL remains 85.0
-    res_entry = kite_executor._check_exit_triggers(pos, cur_price=103.0)
+    res_entry = trading_engine._check_exit_triggers(pos, cur_price=103.0)
     assert res_entry is None
     assert pos["stop_loss"] == 85.0
 
     # Price reaches +7% gain (107.0 >= 6%), SL trails to Break-Even (100.0)
-    res_be = kite_executor._check_exit_triggers(pos, cur_price=107.0)
+    res_be = trading_engine._check_exit_triggers(pos, cur_price=107.0)
     assert res_be is None
     assert pos["stop_loss"] == 100.0  # Trailed to cost basis!
 
     # When price hits Target 1 (125.0), SL trails to locked profit (100 + (125-100)*0.5 = 112.5)
-    res_t1 = kite_executor._check_exit_triggers(pos, cur_price=126.0)
+    trading_engine._check_exit_triggers(pos, cur_price=126.0)
     assert pos["stop_loss"] == 112.5  # Locked in 50% profits!
 
     # When price hits Target 2 (150.0), TARGET_HIT triggers
-    res_t2 = kite_executor._check_exit_triggers(pos, cur_price=151.0)
+    res_t2 = trading_engine._check_exit_triggers(pos, cur_price=151.0)
     assert res_t2 == "TARGET_HIT"
 
 
@@ -167,12 +166,12 @@ def test_effective_price_with_option_delta():
         "quantity": 25,
         "buy_price": 120.0,
         "underlying_entry": 24800.0,
-        "current_ltp": 120.0
+        "current_ltp": 120.0,
     }
 
     # If underlying moves up by 100 points (from 24800 to 24900)
     live_prices = {"NIFTY 50": 24900.0}
-    effective_price = kite_executor._calculate_effective_price(
+    effective_price = trading_engine._calculate_effective_price(
         "NIFTY 50", pos["instrument"], pos, live_prices
     )
 
@@ -183,9 +182,9 @@ def test_effective_price_with_option_delta():
 def test_daily_loss_circuit_breaker():
     """Validates that reaching max daily loss limit blocks new trade approvals."""
     # Temporarily set high loss in orders history
-    old_orders = list(kite_executor.orders_history)
-    kite_executor.orders_history = [{"pnl": -2500.0, "status": "COMPLETED"}]
-    
+    old_orders = list(trading_engine.orders_history)
+    trading_engine.orders_history = [{"pnl": -2500.0, "status": "COMPLETED"}]
+
     proposal = {
         "proposal_id": "TEST-BREAKER",
         "symbol": "NIFTY 50",
@@ -196,22 +195,22 @@ def test_daily_loss_circuit_breaker():
         "stop_loss": 90.0,
         "target_1": 120.0,
         "target_2": 140.0,
-        "status": "PENDING_APPROVAL"
+        "status": "PENDING_APPROVAL",
     }
-    kite_executor.pending_proposals["TEST-BREAKER"] = proposal
+    trading_engine.pending_proposals["TEST-BREAKER"] = proposal
 
     with pytest.raises(ValueError, match="Daily Loss Circuit Breaker ACTIVATED"):
-        kite_executor.approve_trade("TEST-BREAKER")
+        trading_engine.approve_trade("TEST-BREAKER")
 
     # Restore state
-    kite_executor.orders_history = old_orders
-    kite_executor.pending_proposals.pop("TEST-BREAKER", None)
+    trading_engine.orders_history = old_orders
+    trading_engine.pending_proposals.pop("TEST-BREAKER", None)
 
 
 def test_single_loss_45m_lockout():
     """Validates that a stop loss hit triggers a 45-minute lockout on the symbol."""
     sym = "TATAMOTORS"
-    assert kite_executor.is_in_loss_lockout(sym)[0] is False
+    assert trading_engine.is_in_loss_lockout(sym)[0] is False
 
     # Simulate position closing on stop loss
     pos_id = "POS-LOCKOUT-TEST"
@@ -227,17 +226,17 @@ def test_single_loss_45m_lockout():
         "target_1": 320.0,
         "target_2": 325.0,
         "status": "OPEN",
-        "mode": "PAPER"
+        "mode": "PAPER",
     }
-    kite_executor.positions[pos_id] = pos
-    kite_executor.close_position(pos_id, reason="STOP_LOSS_HIT")
+    trading_engine.positions[pos_id] = pos
+    trading_engine.close_position(pos_id, reason="STOP_LOSS_HIT")
 
-    is_locked, remaining = kite_executor.is_in_loss_lockout(sym, cooldown_minutes=45)
+    is_locked, remaining = trading_engine.is_in_loss_lockout(sym, cooldown_minutes=45)
     assert is_locked is True
     assert remaining >= 44
 
     # Clean up test state
-    kite_executor.last_loss_times.pop(sym, None)
+    trading_engine.last_loss_times.pop(sym, None)
 
 
 def test_auto_square_off_1515():
@@ -255,13 +254,13 @@ def test_auto_square_off_1515():
         "target_1": 80.0,
         "target_2": 90.0,
         "status": "OPEN",
-        "mode": "PAPER"
+        "mode": "PAPER",
     }
-    kite_executor.positions[pos_id] = pos
+    trading_engine.positions[pos_id] = pos
 
-    closed_records = kite_executor.auto_square_off_mis_positions()
+    closed_records = trading_engine.auto_square_off_mis_positions()
     assert len(closed_records) >= 1
-    assert pos_id not in kite_executor.positions
+    assert pos_id not in trading_engine.positions
     assert pos["status"] == "CLOSED"
     assert pos["close_reason"] == "INTRADAY_AUTO_SQUAREOFF_1515"
 
@@ -270,8 +269,7 @@ def test_15m_opening_range_orb_filter():
     """Validates 15-minute Opening Range (ORB) breakout scoring logic."""
     df = generate_synthetic_candles("bullish", count=40)
     quote = {"ltp": float(df["close"].iloc[-1])}
-    
+
     res = quant_engine.evaluate_quantitative_setup("TATAMOTORS", quote, df)
     # The technical rationale should reference the 15-min Opening Range
     assert "Opening Range" in res["technical_rationale"] or "15-min" in res["technical_rationale"]
-
