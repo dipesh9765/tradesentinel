@@ -49,6 +49,11 @@ export const TradingChart: React.FC<TradingChartProps> = ({
         const draw = () => {
             const ctx = canvas.getContext("2d");
             if (!ctx) return;
+            // A canvas cannot read var(); resolve the design tokens once per draw so a theme change applies.
+            const styles = getComputedStyle(canvas);
+            const tok = (name: string): string => styles.getPropertyValue(`--color-${name}`).trim();
+            const dataFace = styles.getPropertyValue("--font-data").trim() || "monospace";
+            const uiFace = styles.getPropertyValue("--font-ui").trim() || "sans-serif";
 
             // Handle high DPI & Responsive width
             const dpr = window.devicePixelRatio || 1;
@@ -86,10 +91,10 @@ export const TradingChart: React.FC<TradingChartProps> = ({
             };
 
             // Draw Grid Lines (4 horizontal levels)
-            ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
+            ctx.strokeStyle = `color-mix(in srgb, ${tok("ink")} 5%, transparent)`;
             ctx.lineWidth = 1;
-            ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
-            ctx.font = "10px Inter, sans-serif";
+            ctx.fillStyle = `color-mix(in srgb, ${tok("ink")} 40%, transparent)`;
+            ctx.font = `10px ${uiFace}`;
             ctx.textAlign = "left";
 
             for (let i = 0; i <= 4; i++) {
@@ -107,8 +112,8 @@ export const TradingChart: React.FC<TradingChartProps> = ({
             candles.forEach((c, idx) => {
                 const x = padding.left + idx * (candleWidth + 3);
                 const isBull = c.close >= c.open;
-                ctx.fillStyle = isBull ? "#00f0ff" : "#ff0055";
-                ctx.strokeStyle = isBull ? "#00f0ff" : "#ff0055";
+                ctx.fillStyle = isBull ? tok("signal") : tok("bad");
+                ctx.strokeStyle = isBull ? tok("signal") : tok("bad");
 
                 // Wick
                 ctx.beginPath();
@@ -124,7 +129,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({
             });
 
             // Draw EMA 9 (Cyan line)
-            ctx.strokeStyle = "#00f0ff";
+            ctx.strokeStyle = tok("signal");
             ctx.lineWidth = 1.5;
             ctx.beginPath();
             let startedEma9 = false;
@@ -144,7 +149,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({
             ctx.stroke();
 
             // Draw EMA 21 (Yellow line)
-            ctx.strokeStyle = "#ffb703";
+            ctx.strokeStyle = tok("warn");
             ctx.lineWidth = 1.5;
             ctx.beginPath();
             let startedEma21 = false;
@@ -164,7 +169,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({
             ctx.stroke();
 
             // Draw VWAP (Purple dashed line)
-            ctx.strokeStyle = "#c084fc";
+            ctx.strokeStyle = tok("signal");
             ctx.lineWidth = 1.5;
             ctx.setLineDash([4, 4]);
             ctx.beginPath();
@@ -188,7 +193,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({
             candles.forEach((c, idx) => {
                 const x = padding.left + idx * (candleWidth + 3);
                 const isGreen = c.close >= c.open;
-                const candleColor = isGreen ? "#00e699" : "#ff3366";
+                const candleColor = isGreen ? tok("ok") : tok("bad");
 
                 // Wick
                 ctx.strokeStyle = candleColor;
@@ -214,34 +219,34 @@ export const TradingChart: React.FC<TradingChartProps> = ({
 
                 // Stop Loss (Red)
                 const slY = getY(proposal.stop_loss);
-                ctx.strokeStyle = "#ff3366";
+                ctx.strokeStyle = tok("bad");
                 ctx.beginPath();
                 ctx.moveTo(padding.left, slY);
                 ctx.lineTo(width - padding.right, slY);
                 ctx.stroke();
-                ctx.fillStyle = "#ff3366";
-                ctx.font = "10px 'JetBrains Mono', monospace";
-                ctx.fillText(`SL: ₹${proposal.stop_loss}`, width - padding.right + 4, slY - 3);
+                ctx.fillStyle = tok("bad");
+                ctx.font = `10px ${dataFace}`;
+                ctx.fillText(`Stop ₹${proposal.stop_loss}`, width - padding.right + 4, slY - 3);
 
                 // Target 1 (Green)
                 const tY = getY(proposal.target_1);
-                ctx.strokeStyle = "#00e699";
+                ctx.strokeStyle = tok("ok");
                 ctx.beginPath();
                 ctx.moveTo(padding.left, tY);
                 ctx.lineTo(width - padding.right, tY);
                 ctx.stroke();
-                ctx.fillStyle = "#00e699";
-                ctx.fillText(`TP: ₹${proposal.target_1}`, width - padding.right + 4, tY - 3);
+                ctx.fillStyle = tok("ok");
+                ctx.fillText(`Target ₹${proposal.target_1}`, width - padding.right + 4, tY - 3);
 
                 // Entry Price (Gold)
                 const entY = getY(proposal.entry_price);
-                ctx.strokeStyle = "#ffb703";
+                ctx.strokeStyle = tok("warn");
                 ctx.beginPath();
                 ctx.moveTo(padding.left, entY);
                 ctx.lineTo(width - padding.right, entY);
                 ctx.stroke();
-                ctx.fillStyle = "#ffb703";
-                ctx.fillText(`ENTRY: ₹${proposal.entry_price}`, width - padding.right + 4, entY - 3);
+                ctx.fillStyle = tok("warn");
+                ctx.fillText(`Entry ₹${proposal.entry_price}`, width - padding.right + 4, entY - 3);
 
                 ctx.setLineDash([]);
             }
@@ -258,19 +263,19 @@ export const TradingChart: React.FC<TradingChartProps> = ({
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                     <h3 style={{ fontSize: "16px", fontWeight: 700 }}>{symbol} Real-Time Chart</h3>
-                    <span style={{ fontSize: "12px", color: "var(--text-dim)" }}>5-Min Intraday Candles</span>
+                    <span style={{ fontSize: "12px", color: "var(--color-ink-faint)" }}>5-Min Intraday Candles</span>
                 </div>
 
                 {/* Indicator Legend */}
-                <div style={{ display: "flex", alignItems: "center", gap: "14px", fontSize: "11px", fontFamily: "var(--font-mono)" }}>
-                    <span style={{ display: "flex", alignItems: "center", gap: "4px", color: "#00f0ff" }}>
-                        <span style={{ width: "8px", height: "2px", backgroundColor: "#00f0ff" }}></span> EMA 9
+                <div style={{ display: "flex", alignItems: "center", gap: "14px", fontSize: "12px", fontFamily: "var(--font-data)" }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: "4px", color: "var(--color-signal)" }}>
+                        <span style={{ width: "8px", height: "2px", backgroundColor: "var(--color-signal)" }}></span> EMA 9
                     </span>
-                    <span style={{ display: "flex", alignItems: "center", gap: "4px", color: "#ffb703" }}>
-                        <span style={{ width: "8px", height: "2px", backgroundColor: "#ffb703" }}></span> EMA 21
+                    <span style={{ display: "flex", alignItems: "center", gap: "4px", color: "var(--color-warn)" }}>
+                        <span style={{ width: "8px", height: "2px", backgroundColor: "var(--color-warn)" }}></span> EMA 21
                     </span>
-                    <span style={{ display: "flex", alignItems: "center", gap: "4px", color: "#c084fc" }}>
-                        <span style={{ width: "8px", height: "2px", backgroundColor: "#c084fc", borderBottom: "1px dashed" }}></span> VWAP
+                    <span style={{ display: "flex", alignItems: "center", gap: "4px", color: "var(--color-signal)" }}>
+                        <span style={{ width: "8px", height: "2px", backgroundColor: "var(--color-signal)", borderBottom: "1px dashed" }}></span> VWAP
                     </span>
                 </div>
             </div>
@@ -289,8 +294,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({
                             left: 0,
                             right: 0,
                             bottom: 0,
-                            backgroundColor: "rgba(10, 15, 26, 0.82)",
-                            backdropFilter: "blur(6px)",
+                            backgroundColor: "color-mix(in srgb, var(--color-paper) 82%, transparent)",
                             WebkitBackdropFilter: "blur(6px)",
                             display: "flex",
                             flexDirection: "column",
@@ -298,25 +302,23 @@ export const TradingChart: React.FC<TradingChartProps> = ({
                             justifyContent: "center",
                             gap: "14px",
                             zIndex: 10,
-                            animation: "fadeIn 0.2s ease"
-                        }}
+                            }}
                     >
                         <div
                             style={{
                                 width: "40px",
                                 height: "40px",
-                                border: "3px solid rgba(0, 240, 255, 0.15)",
-                                borderTop: "3px solid #00f0ff",
+                                border: "3px solid color-mix(in srgb, var(--color-signal) 15%, transparent)",
+                                borderTop: "3px solid var(--color-signal)",
                                 borderRadius: "50%",
                                 animation: "spin 0.75s linear infinite",
-                                boxShadow: "0 0 15px rgba(0, 240, 255, 0.3)"
                             }}
                         />
                         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "5px", textAlign: "center" }}>
-                            <span style={{ fontSize: "14px", fontWeight: 700, color: "#f8fafc", letterSpacing: "0.4px" }}>
+                            <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--color-ink)", }}>
                                 Loading live chart data for {symbol}...
                             </span>
-                            <span style={{ fontSize: "11px", color: "#94a3b8", fontFamily: "var(--font-mono)" }}>
+                            <span style={{ fontSize: "12px", color: "var(--color-ink-soft)", fontFamily: "var(--font-data)" }}>
                                 Streaming real-time 5-min candles & technical indicators
                             </span>
                         </div>
@@ -332,8 +334,7 @@ export const TradingChart: React.FC<TradingChartProps> = ({
                             left: 0,
                             right: 0,
                             bottom: 0,
-                            backgroundColor: "rgba(10, 15, 26, 0.94)",
-                            backdropFilter: "blur(8px)",
+                            backgroundColor: "color-mix(in srgb, var(--color-paper) 94%, transparent)",
                             WebkitBackdropFilter: "blur(8px)",
                             display: "flex",
                             flexDirection: "column",
@@ -347,17 +348,17 @@ export const TradingChart: React.FC<TradingChartProps> = ({
                         {/* Condition A: Kite session is not initialized or not connected */}
                         {(!kiteConnected || effectiveStatus === "KITE_SESSION_NOT_INITIALIZED") && (
                             <div style={{ maxWidth: "480px", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
-                                <div style={{ background: "rgba(255, 179, 0, 0.15)", padding: "14px", borderRadius: "16px", border: "1px solid rgba(255, 179, 0, 0.3)" }}>
-                                    <ShieldAlert size={36} color="#ffb300" />
+                                <div style={{ background: "color-mix(in srgb, var(--color-warn) 15%, transparent)", padding: "14px", borderRadius: "16px", border: "1px solid color-mix(in srgb, var(--color-warn) 30%, transparent)" }}>
+                                    <ShieldAlert size={36} color="var(--color-warn)" />
                                 </div>
                                 <div>
-                                    <h4 style={{ fontSize: "16px", fontWeight: 700, color: "#ffb300", marginBottom: "6px" }}>
+                                    <h4 style={{ fontSize: "16px", fontWeight: 700, color: "var(--color-warn)", marginBottom: "6px" }}>
                                         Zerodha Kite Session Not Initialized
                                     </h4>
-                                    <p style={{ fontSize: "13px", color: "#cbd5e1", lineHeight: 1.5 }}>
+                                    <p style={{ fontSize: "13px", color: "var(--color-ink-soft)", lineHeight: 1.5 }}>
                                         Real-time candlestick charts cannot load without an authenticated Zerodha Kite session.
                                     </p>
-                                    <p style={{ fontSize: "11.5px", color: "#94a3b8", marginTop: "6px", fontFamily: "var(--font-mono)" }}>
+                                    <p style={{ fontSize: "12px", color: "var(--color-ink-soft)", marginTop: "6px", fontFamily: "var(--font-data)" }}>
                                         {errorMessage || "Please configure your Kite API credentials and authenticate today's daily session in Settings."}
                                     </p>
                                 </div>
@@ -372,9 +373,9 @@ export const TradingChart: React.FC<TradingChartProps> = ({
                                             gap: "8px",
                                             padding: "8px 18px",
                                             fontSize: "13px",
-                                            background: "#ffb300",
-                                            color: "#0c111d",
-                                            borderColor: "#ffb300"
+                                            background: "var(--color-warn)",
+                                            color: "var(--color-raised)",
+                                            borderColor: "var(--color-warn)"
                                         }}
                                     >
                                         <Settings size={15} />
@@ -387,33 +388,33 @@ export const TradingChart: React.FC<TradingChartProps> = ({
                         {/* Condition B: Kite is connected, but Zerodha Kite returned an error from their side */}
                         {kiteConnected && effectiveStatus === "KITE_BROKER_ERROR" && (
                             <div style={{ maxWidth: "520px", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
-                                <div style={{ background: "rgba(255, 51, 102, 0.15)", padding: "14px", borderRadius: "16px", border: "1px solid rgba(255, 51, 102, 0.35)" }}>
-                                    <AlertTriangle size={36} color="#ff3366" />
+                                <div style={{ background: "color-mix(in srgb, var(--color-bad) 15%, transparent)", padding: "14px", borderRadius: "16px", border: "1px solid color-mix(in srgb, var(--color-bad) 35%, transparent)" }}>
+                                    <AlertTriangle size={36} color="var(--color-bad)" />
                                 </div>
                                 <div>
-                                    <h4 style={{ fontSize: "16px", fontWeight: 700, color: "#ff3366", marginBottom: "6px" }}>
+                                    <h4 style={{ fontSize: "16px", fontWeight: 700, color: "var(--color-bad)", marginBottom: "6px" }}>
                                         Zerodha Kite Broker Error
                                     </h4>
-                                    <p style={{ fontSize: "13px", color: "#cbd5e1", lineHeight: 1.5 }}>
+                                    <p style={{ fontSize: "13px", color: "var(--color-ink-soft)", lineHeight: 1.5 }}>
                                         Kite session is active, but Zerodha Kite returned an error while fetching 5-minute candles for <strong>{symbol}</strong>:
                                     </p>
                                     <div
                                         style={{
                                             marginTop: "8px",
-                                            background: "rgba(0, 0, 0, 0.45)",
-                                            border: "1px solid rgba(255, 51, 102, 0.3)",
+                                            background: "color-mix(in srgb, var(--color-ink) 45%, transparent)",
+                                            border: "1px solid color-mix(in srgb, var(--color-bad) 30%, transparent)",
                                             padding: "10px 14px",
                                             borderRadius: "8px",
                                             fontSize: "12px",
-                                            color: "#fca5a5",
-                                            fontFamily: "var(--font-mono)",
+                                            color: "var(--color-bad)",
+                                            fontFamily: "var(--font-data)",
                                             wordBreak: "break-word"
                                         }}
                                     >
                                         {effectiveError || "Historical data API call failed or timed out from broker."}
                                     </div>
-                                    <p style={{ fontSize: "11px", color: "#94a3b8", marginTop: "8px" }}>
-                                        💡 Note: Zerodha requires an active <strong>Kite Connect Historical Data</strong> add-on subscription (₹2,000/mo) on your developer app to stream candlestick charts.
+                                    <p style={{ fontSize: "12px", color: "var(--color-ink-soft)", marginTop: "8px" }}>
+                                        Note: Zerodha requires an active <strong>Kite Connect Historical Data</strong> add-on subscription (₹2,000/mo) on your developer app to stream candlestick charts.
                                     </p>
                                 </div>
                                 {onRetry && (
@@ -439,14 +440,14 @@ export const TradingChart: React.FC<TradingChartProps> = ({
                         {/* Condition C: Kite is connected, but no intraday candles returned (market closed, weekend, or holiday) */}
                         {kiteConnected && chartStatus !== "KITE_SESSION_NOT_INITIALIZED" && chartStatus !== "KITE_BROKER_ERROR" && (
                             <div style={{ maxWidth: "460px", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
-                                <div style={{ background: "rgba(0, 240, 255, 0.12)", padding: "14px", borderRadius: "16px", border: "1px solid rgba(0, 240, 255, 0.25)" }}>
-                                    <BarChart2 size={36} color="#00f0ff" />
+                                <div style={{ background: "color-mix(in srgb, var(--color-signal) 12%, transparent)", padding: "14px", borderRadius: "16px", border: "1px solid color-mix(in srgb, var(--color-signal) 25%, transparent)" }}>
+                                    <BarChart2 size={36} color="var(--color-signal)" />
                                 </div>
                                 <div>
-                                    <h4 style={{ fontSize: "16px", fontWeight: 700, color: "#00f0ff", marginBottom: "6px" }}>
+                                    <h4 style={{ fontSize: "16px", fontWeight: 700, color: "var(--color-signal)", marginBottom: "6px" }}>
                                         No Market Candles Available for {symbol}
                                     </h4>
-                                    <p style={{ fontSize: "13px", color: "#cbd5e1", lineHeight: 1.5 }}>
+                                    <p style={{ fontSize: "13px", color: "var(--color-ink-soft)", lineHeight: 1.5 }}>
                                         {errorMessage || "No recent 5-minute candlestick data was returned by Zerodha Kite for this instrument. Market may be closed or trading is halted."}
                                     </p>
                                 </div>

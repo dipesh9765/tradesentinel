@@ -14,7 +14,6 @@ vi.mock("../services/sound", () => ({
     soundManager: { playClick: vi.fn(), playAlert: vi.fn(), playSuccess: vi.fn() },
 }));
 vi.mock("../services/notifications", () => ({ notificationManager: { notifyTradeProposal: vi.fn() } }));
-vi.mock("canvas-confetti", () => ({ default: vi.fn() }));
 
 import { approveTradeApi, closePositionApi, rejectTradeApi, requestAiScan } from "../services/api";
 import { showAlert } from "../services/dialogs";

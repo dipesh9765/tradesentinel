@@ -71,14 +71,14 @@ class NotificationManager {
     confidence: number;
   }) {
     const action = proposal.signal_type.replace("_", " ");
-    const title = `🚨 TradeSentinel: ${action} on ${proposal.instrument}`;
+    const title = `TradeSentinel: ${action} on ${proposal.instrument}`;
     const body = `Entry: ₹${proposal.entry_price} | SL: ₹${proposal.stop_loss} | Target: ₹${proposal.target_1} (R:R ${proposal.risk_reward} • Conf: ${proposal.confidence}%)\nClick to approve on dashboard.`;
 
     this.sendNotification(title, { body, tag: `proposal-${proposal.instrument}` });
   }
 
   notifyTradeExecuted(instrument: string, qty: number, price: number) {
-    const title = `✅ Order Executed: ${instrument}`;
+    const title = `Order executed: ${instrument}`;
     const body = `Filled ${qty} Lot @ ₹${price}. Position is now monitored with Stop-Loss & Target.`;
     this.sendNotification(title, { body, tag: `executed-${instrument}` });
   }

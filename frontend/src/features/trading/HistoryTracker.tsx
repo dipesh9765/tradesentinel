@@ -34,8 +34,8 @@ export const HistoryTracker: React.FC<HistoryTrackerProps> = ({
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "10px" }}>
                 <div>
                     <h3 style={{ fontSize: "16px", fontWeight: 700 }}>Signals & Order History Tracker</h3>
-                    <div style={{ fontSize: "11px", color: "var(--text-dim)" }}>
-                        Persisted in SQLite Database • Track real-time progress, SL, targets, and exit anytime
+                    <div style={{ fontSize: "12px", color: "var(--color-ink-faint)" }}>
+                        Persisted in SQLite Database, Track real-time progress, SL, targets, and exit anytime
                     </div>
                 </div>
 
@@ -46,12 +46,12 @@ export const HistoryTracker: React.FC<HistoryTrackerProps> = ({
                             key={f}
                             onClick={() => setFilter(f)}
                             style={{
-                                background: filter === f ? "rgba(0, 240, 255, 0.15)" : "rgba(255, 255, 255, 0.04)",
-                                color: filter === f ? "var(--color-cyan)" : "var(--text-muted)",
-                                border: `1px solid ${filter === f ? "var(--border-glow)" : "var(--border-color)"}`,
+                                background: filter === f ? "color-mix(in srgb, var(--color-signal) 15%, transparent)" : "color-mix(in srgb, var(--color-ink) 4%, transparent)",
+                                color: filter === f ? "var(--color-signal)" : "var(--color-ink-soft)",
+                                border: `1px solid ${filter === f ? "var(--color-edge)" : "var(--color-line)"}`,
                                 borderRadius: "6px",
                                 padding: "4px 10px",
-                                fontSize: "11px",
+                                fontSize: "12px",
                                 fontWeight: 600,
                                 cursor: "pointer"
                             }}
@@ -64,7 +64,7 @@ export const HistoryTracker: React.FC<HistoryTrackerProps> = ({
 
             {/* History Items List */}
             {filteredHistory.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "30px 10px", color: "var(--text-muted)", fontSize: "13px" }}>
+                <div style={{ textAlign: "center", padding: "30px 10px", color: "var(--color-ink-soft)", fontSize: "13px" }}>
                     No records match this filter. Trigger a scan above to generate signals.
                 </div>
             ) : (
@@ -93,10 +93,10 @@ export const HistoryTracker: React.FC<HistoryTrackerProps> = ({
                                 key={item.proposal_id}
                                 style={{
                                     borderRadius: "10px",
-                                    background: isExpanded ? "rgba(255, 255, 255, 0.05)" : "rgba(255, 255, 255, 0.02)",
-                                    border: `1px solid ${isOpen ? "rgba(0, 230, 153, 0.3)" : isExpanded ? "var(--border-glow)" : "var(--border-color)"}`,
+                                    background: isExpanded ? "color-mix(in srgb, var(--color-ink) 5%, transparent)" : "color-mix(in srgb, var(--color-ink) 2%, transparent)",
+                                    border: `1px solid ${isOpen ? "color-mix(in srgb, var(--color-ok) 30%, transparent)" : isExpanded ? "var(--color-edge)" : "var(--color-line)"}`,
                                     overflow: "hidden",
-                                    transition: "all 0.2s ease"
+                                    transition: "background-color 160ms, border-color 160ms, color 160ms, opacity 160ms"
                                 }}
                             >
                                 {/* Summary Row (Clickable) */}
@@ -117,10 +117,10 @@ export const HistoryTracker: React.FC<HistoryTrackerProps> = ({
                                             style={{
                                                 padding: "3px 8px",
                                                 borderRadius: "5px",
-                                                fontSize: "11px",
+                                                fontSize: "12px",
                                                 fontWeight: 700,
-                                                background: isBull ? "rgba(0, 230, 153, 0.15)" : "rgba(255, 51, 102, 0.15)",
-                                                color: isBull ? "var(--color-bull)" : "var(--color-bear)",
+                                                background: isBull ? "color-mix(in srgb, var(--color-ok) 15%, transparent)" : "color-mix(in srgb, var(--color-bad) 15%, transparent)",
+                                                color: isBull ? "var(--color-ok)" : "var(--color-bad)",
                                                 display: "flex",
                                                 alignItems: "center",
                                                 gap: "4px"
@@ -132,8 +132,8 @@ export const HistoryTracker: React.FC<HistoryTrackerProps> = ({
 
                                         <div>
                                             <div style={{ fontWeight: 700, fontSize: "14px" }}>{item.instrument}</div>
-                                            <div style={{ fontSize: "11px", color: "var(--text-dim)" }}>
-                                                {item.suggested_at} • Entry: ₹{item.entry_price}
+                                            <div style={{ fontSize: "12px", color: "var(--color-ink-faint)" }}>
+                                                {item.suggested_at}, Entry: ₹{item.entry_price}
                                             </div>
                                         </div>
                                     </div>
@@ -142,11 +142,11 @@ export const HistoryTracker: React.FC<HistoryTrackerProps> = ({
                                     <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
                                         {isOpen && (
                                             <div style={{ textAlign: "right" }}>
-                                                <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 700, color: item.mode === "PAPER" ? "var(--color-cyan)" : "var(--color-bull)", background: item.mode === "PAPER" ? "rgba(0, 242, 254, 0.15)" : "rgba(0, 230, 153, 0.15)", padding: "2px 8px", borderRadius: "12px" }}>
-                                                    <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: item.mode === "PAPER" ? "var(--color-cyan)" : "var(--color-bull)" }} className="radar-active" />
+                                                <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "12px", fontWeight: 700, color: item.mode === "PAPER" ? "var(--color-signal)" : "var(--color-ok)", background: item.mode === "PAPER" ? "color-mix(in srgb, var(--color-signal) 15%, transparent)" : "color-mix(in srgb, var(--color-ok) 15%, transparent)", padding: "2px 8px", borderRadius: "12px" }}>
+                                                    <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: item.mode === "PAPER" ? "var(--color-signal)" : "var(--color-ok)" }} className="radar-active" />
                                                     {item.mode === "PAPER" ? "SANDBOX OPEN" : "LIVE OPEN"}
                                                 </div>
-                                                <div className="font-mono" style={{ fontSize: "13px", fontWeight: 700, color: isProfit ? "var(--color-bull)" : "var(--color-bear)", marginTop: "2px" }}>
+                                                <div className="font-mono" style={{ fontSize: "13px", fontWeight: 700, color: isProfit ? "var(--color-ok)" : "var(--color-bad)", marginTop: "2px" }}>
                                                     {isProfit ? "+" : ""}₹{pnl.toFixed(2)} ({isProfit ? "+" : ""}{item.pnl_pct || 0}%)
                                                 </div>
                                             </div>
@@ -154,53 +154,53 @@ export const HistoryTracker: React.FC<HistoryTrackerProps> = ({
 
                                         {isClosed && (
                                             <div style={{ textAlign: "right" }}>
-                                                <div style={{ fontSize: "11px", color: "var(--text-dim)", textTransform: "uppercase" }}>
+                                                <div style={{ fontSize: "12px", color: "var(--color-ink-faint)", }}>
                                                     Net Gain
                                                 </div>
-                                                <div className="font-mono" style={{ fontSize: "14px", fontWeight: 700, color: isProfit ? "var(--color-bull)" : "var(--color-bear)" }}>
+                                                <div className="font-mono" style={{ fontSize: "14px", fontWeight: 700, color: isProfit ? "var(--color-ok)" : "var(--color-bad)" }}>
                                                     {isProfit ? "+" : ""}₹{pnl.toFixed(2)}
                                                 </div>
                                             </div>
                                         )}
 
                                         {isRejected && (
-                                            <span style={{ fontSize: "11px", color: "var(--text-dim)", background: "rgba(255, 255, 255, 0.05)", padding: "3px 8px", borderRadius: "6px" }}>
+                                            <span style={{ fontSize: "12px", color: "var(--color-ink-faint)", background: "color-mix(in srgb, var(--color-ink) 5%, transparent)", padding: "3px 8px", borderRadius: "6px" }}>
                                                 REJECTED
                                             </span>
                                         )}
 
                                         {item.overall_status === "PENDING" && (
-                                            <span style={{ fontSize: "11px", color: "var(--color-amber)", background: "rgba(255, 183, 3, 0.12)", padding: "3px 8px", borderRadius: "6px" }}>
+                                            <span style={{ fontSize: "12px", color: "var(--color-warn)", background: "color-mix(in srgb, var(--color-warn) 12%, transparent)", padding: "3px 8px", borderRadius: "6px" }}>
                                                 PENDING
                                             </span>
                                         )}
 
-                                        {isExpanded ? <ChevronUp size={16} color="var(--text-dim)" /> : <ChevronDown size={16} color="var(--text-dim)" />}
+                                        {isExpanded ? <ChevronUp size={16} color="var(--color-ink-faint)" /> : <ChevronDown size={16} color="var(--color-ink-faint)" />}
                                     </div>
                                 </div>
 
                                 {/* Expanded Real-Time Tracker */}
                                 {isExpanded && (
-                                    <div style={{ padding: "16px", borderTop: "1px solid var(--border-color)", background: "rgba(0, 0, 0, 0.25)" }}>
+                                    <div style={{ padding: "16px", borderTop: "1px solid var(--color-line)", background: "color-mix(in srgb, var(--color-ink) 25%, transparent)" }}>
                                         {/* Visual Target & Stop-Loss Tracker Bar */}
                                         <div style={{ marginBottom: "16px" }}>
-                                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", marginBottom: "6px", fontFamily: "var(--font-mono)" }}>
-                                                <span style={{ color: "var(--color-bear)", fontWeight: 600 }}>🛑 SL: ₹{item.stop_loss}</span>
-                                                <span style={{ color: "var(--color-cyan)", fontWeight: 700 }}>
+                                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "6px", fontFamily: "var(--font-data)" }}>
+                                                <span style={{ color: "var(--color-bad)", fontWeight: 600 }}>SL: ₹{item.stop_loss}</span>
+                                                <span style={{ color: "var(--color-signal)", fontWeight: 700 }}>
                                                     Current LTP: ₹{cur.toFixed(2)}
                                                 </span>
-                                                <span style={{ color: "var(--color-bull)", fontWeight: 600 }}>🎯 Target 1: ₹{item.target_1}</span>
+                                                <span style={{ color: "var(--color-ok)", fontWeight: 600 }}>Target 1: ₹{item.target_1}</span>
                                             </div>
 
                                             {/* Progress bar */}
-                                            <div style={{ width: "100%", height: "8px", background: "rgba(255, 255, 255, 0.08)", borderRadius: "4px", overflow: "hidden", position: "relative" }}>
+                                            <div style={{ width: "100%", height: "8px", background: "color-mix(in srgb, var(--color-ink) 8%, transparent)", borderRadius: "4px", overflow: "hidden", position: "relative" }}>
                                                 <div
                                                     style={{
                                                         width: `${progressPct}%`,
                                                         height: "100%",
                                                         background: isProfit
-                                                            ? "linear-gradient(90deg, #ffb703 0%, #00e699 100%)"
-                                                            : "linear-gradient(90deg, #ff3366 0%, #ffb703 100%)",
+                                                            ? "var(--color-warn)"
+                                                            : "var(--color-bad)",
                                                         transition: "width 0.3s ease"
                                                     }}
                                                 />
@@ -215,36 +215,36 @@ export const HistoryTracker: React.FC<HistoryTrackerProps> = ({
                                             marginBottom: "14px"
                                         }}>
                                             <div className="glass-panel" style={{ padding: "8px 12px", borderRadius: "8px" }}>
-                                                <div style={{ fontSize: "10px", color: "var(--text-dim)" }}>BUY / ENTRY</div>
+                                                <div style={{ fontSize: "12px", color: "var(--color-ink-faint)" }}>BUY / ENTRY</div>
                                                 <div className="font-mono" style={{ fontSize: "14px", fontWeight: 700 }}>₹{entry.toFixed(2)}</div>
                                             </div>
                                             <div className="glass-panel" style={{ padding: "8px 12px", borderRadius: "8px" }}>
-                                                <div style={{ fontSize: "10px", color: "var(--text-dim)" }}>CURRENT LTP</div>
-                                                <div className="font-mono" style={{ fontSize: "14px", fontWeight: 700, color: "var(--color-cyan)" }}>₹{cur.toFixed(2)}</div>
+                                                <div style={{ fontSize: "12px", color: "var(--color-ink-faint)" }}>Current price</div>
+                                                <div className="font-mono" style={{ fontSize: "14px", fontWeight: 700, color: "var(--color-signal)" }}>₹{cur.toFixed(2)}</div>
                                             </div>
                                             <div className="glass-panel" style={{ padding: "8px 12px", borderRadius: "8px" }}>
-                                                <div style={{ fontSize: "10px", color: "var(--color-bear)" }}>STOP LOSS</div>
-                                                <div className="font-mono" style={{ fontSize: "14px", fontWeight: 700, color: "var(--color-bear)" }}>₹{item.stop_loss}</div>
+                                                <div style={{ fontSize: "12px", color: "var(--color-bad)" }}>Stop loss</div>
+                                                <div className="font-mono" style={{ fontSize: "14px", fontWeight: 700, color: "var(--color-bad)" }}>₹{item.stop_loss}</div>
                                             </div>
                                             <div className="glass-panel" style={{ padding: "8px 12px", borderRadius: "8px" }}>
-                                                <div style={{ fontSize: "10px", color: "var(--color-bull)" }}>TARGET 1</div>
-                                                <div className="font-mono" style={{ fontSize: "14px", fontWeight: 700, color: "var(--color-bull)" }}>₹{item.target_1}</div>
+                                                <div style={{ fontSize: "12px", color: "var(--color-ok)" }}>Target 1</div>
+                                                <div className="font-mono" style={{ fontSize: "14px", fontWeight: 700, color: "var(--color-ok)" }}>₹{item.target_1}</div>
                                             </div>
                                             <div className="glass-panel" style={{ padding: "8px 12px", borderRadius: "8px" }}>
-                                                <div style={{ fontSize: "10px", color: isProfit ? "var(--color-bull)" : "var(--color-bear)" }}>
-                                                    {isOpen ? "UNREALIZED P&L" : "NET GAIN"}
+                                                <div style={{ fontSize: "12px", color: isProfit ? "var(--color-ok)" : "var(--color-bad)" }}>
+                                                    {isOpen ? "Unrealized P&L" : "Net gain"}
                                                 </div>
-                                                <div className="font-mono" style={{ fontSize: "14px", fontWeight: 700, color: isProfit ? "var(--color-bull)" : "var(--color-bear)" }}>
+                                                <div className="font-mono" style={{ fontSize: "14px", fontWeight: 700, color: isProfit ? "var(--color-ok)" : "var(--color-bad)" }}>
                                                     {isProfit ? "+" : ""}₹{pnl.toFixed(2)}
                                                 </div>
                                             </div>
                                         </div>
 
                                         {/* Metadata & Technical Rationale */}
-                                        <div style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "12px", background: "rgba(0,0,0,0.2)", padding: "10px", borderRadius: "6px" }}>
+                                        <div style={{ fontSize: "12px", color: "var(--color-ink-soft)", marginBottom: "12px", background: "color-mix(in srgb, var(--color-ink) 20%, transparent)", padding: "10px", borderRadius: "6px" }}>
                                             {item.close_reason && (
-                                                <div style={{ marginBottom: "4px", color: "var(--text-main)" }}>
-                                                    <strong>Exit Reason:</strong> <span style={{ color: item.close_reason.includes("TARGET") ? "var(--color-bull)" : "var(--color-amber)" }}>{item.close_reason.replace("_", " ")}</span> ({item.closed_at})
+                                                <div style={{ marginBottom: "4px", color: "var(--color-ink)" }}>
+                                                    <strong>Exit Reason:</strong> <span style={{ color: item.close_reason.includes("TARGET") ? "var(--color-ok)" : "var(--color-warn)" }}>{item.close_reason.replace("_", " ")}</span> ({item.closed_at})
                                                 </div>
                                             )}
                                             <div><strong>AI Rationale:</strong> {item.technical_rationale || "EMA alignment and VWAP confirmation."}</div>

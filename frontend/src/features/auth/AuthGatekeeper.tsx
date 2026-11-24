@@ -68,7 +68,7 @@ export const AuthGatekeeper: React.FC<AuthGatekeeperProps> = ({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "radial-gradient(circle at 50% 20%, #0d1527 0%, #060911 100%)",
+        background: "var(--color-panel)",
         padding: "20px",
         fontFamily: "'Inter', sans-serif"
       }}
@@ -80,10 +80,8 @@ export const AuthGatekeeper: React.FC<AuthGatekeeperProps> = ({
           maxWidth: "460px",
           padding: "36px 32px",
           borderRadius: "20px",
-          background: "rgba(13, 19, 33, 0.85)",
-          border: "1px solid rgba(0, 240, 255, 0.25)",
-          boxShadow: "0 20px 50px rgba(0, 0, 0, 0.8), 0 0 35px rgba(0, 240, 255, 0.12)",
-          backdropFilter: "blur(16px)"
+          background: "var(--color-raised)",
+          border: "1px solid color-mix(in srgb, var(--color-signal) 25%, transparent)",
         }}
       >
         {/* Shield Icon Header */}
@@ -96,23 +94,22 @@ export const AuthGatekeeper: React.FC<AuthGatekeeperProps> = ({
               width: "64px",
               height: "64px",
               borderRadius: "50%",
-              background: "rgba(0, 240, 255, 0.12)",
-              border: "1px solid rgba(0, 240, 255, 0.35)",
-              boxShadow: "0 0 20px rgba(0, 240, 255, 0.25)",
+              background: "color-mix(in srgb, var(--color-signal) 12%, transparent)",
+              border: "1px solid color-mix(in srgb, var(--color-signal) 35%, transparent)",
               marginBottom: "16px"
             }}
           >
             {isInitialized ? (
-              <Lock size={30} color="var(--color-cyan, #00f0ff)" />
+              <Lock size={30} color="var(--color-cyan, var(--color-signal))" />
             ) : (
-              <Shield size={30} color="var(--color-cyan, #00f0ff)" />
+              <Shield size={30} color="var(--color-cyan, var(--color-signal))" />
             )}
           </div>
 
-          <h1 style={{ fontSize: "24px", fontWeight: 800, color: "#ffffff", letterSpacing: "0.5px" }}>
+          <h1 style={{ fontSize: "24px", fontWeight: 800, color: "var(--color-ink)", }}>
             {isInitialized ? "TradeSentinel Security Vault" : "Create Master Security Key"}
           </h1>
-          <p style={{ fontSize: "13.5px", color: "#94a3b8", marginTop: "6px", lineHeight: "1.5" }}>
+          <p style={{ fontSize: "13.5px", color: "var(--color-ink-soft)", marginTop: "6px", lineHeight: "1.5" }}>
             {isInitialized
               ? "This terminal is locked. Enter your Master Password to decrypt your Zerodha Kite and AI credentials."
               : "Set your Master Password to encrypt all credentials in the local SQLite vault and lock the terminal from public access."}
@@ -123,15 +120,15 @@ export const AuthGatekeeper: React.FC<AuthGatekeeperProps> = ({
         {error && (
           <div
             style={{
-              background: "rgba(255, 59, 48, 0.15)",
-              border: "1px solid rgba(255, 59, 48, 0.35)",
+              background: "color-mix(in srgb, var(--color-bad) 15%, transparent)",
+              border: "1px solid color-mix(in srgb, var(--color-bad) 35%, transparent)",
               borderRadius: "10px",
               padding: "12px 14px",
               display: "flex",
               alignItems: "center",
               gap: "10px",
               marginBottom: "20px",
-              color: "#ff8080",
+              color: "var(--color-bad)",
               fontSize: "13px"
             }}
           >
@@ -150,7 +147,7 @@ export const AuthGatekeeper: React.FC<AuthGatekeeperProps> = ({
                   display: "block",
                   fontSize: "12.5px",
                   fontWeight: 600,
-                  color: "#cbd5e1",
+                  color: "var(--color-ink-soft)",
                   marginBottom: "8px"
                 }}
               >
@@ -168,10 +165,10 @@ export const AuthGatekeeper: React.FC<AuthGatekeeperProps> = ({
                   style={{
                     width: "100%",
                     padding: "13px 44px 13px 14px",
-                    background: "#080c14",
-                    border: "1px solid rgba(255, 255, 255, 0.15)",
+                    background: "var(--color-paper)",
+                    border: "1px solid color-mix(in srgb, var(--color-ink) 15%, transparent)",
                     borderRadius: "10px",
-                    color: "#ffffff",
+                    color: "var(--color-ink)",
                     fontSize: "14px",
                     outline: "none",
                     boxSizing: "border-box"
@@ -187,7 +184,7 @@ export const AuthGatekeeper: React.FC<AuthGatekeeperProps> = ({
                     transform: "translateY(-50%)",
                     background: "transparent",
                     border: "none",
-                    color: "#94a3b8",
+                    color: "var(--color-ink-soft)",
                     cursor: "pointer",
                     display: "flex"
                   }}
@@ -206,7 +203,7 @@ export const AuthGatekeeper: React.FC<AuthGatekeeperProps> = ({
                     display: "block",
                     fontSize: "12.5px",
                     fontWeight: 600,
-                    color: "#cbd5e1",
+                    color: "var(--color-ink-soft)",
                     marginBottom: "8px"
                   }}
                 >
@@ -222,10 +219,10 @@ export const AuthGatekeeper: React.FC<AuthGatekeeperProps> = ({
                   style={{
                     width: "100%",
                     padding: "13px 14px",
-                    background: "#080c14",
-                    border: "1px solid rgba(255, 255, 255, 0.15)",
+                    background: "var(--color-paper)",
+                    border: "1px solid color-mix(in srgb, var(--color-ink) 15%, transparent)",
                     borderRadius: "10px",
-                    color: "#ffffff",
+                    color: "var(--color-ink)",
                     fontSize: "14px",
                     outline: "none",
                     boxSizing: "border-box"
@@ -271,22 +268,22 @@ export const AuthGatekeeper: React.FC<AuthGatekeeperProps> = ({
           style={{
             marginTop: "26px",
             paddingTop: "20px",
-            borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+            borderTop: "1px solid color-mix(in srgb, var(--color-ink) 8%, transparent)",
             display: "flex",
             flexDirection: "column",
             gap: "8px"
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "11.5px", color: "#64748b" }}>
-            <CheckCircle2 size={14} color="#00f0ff" />
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "var(--color-ink-faint)" }}>
+            <CheckCircle2 size={14} color="var(--color-signal)" />
             <span>Zero-Trust Public Shield: Site and APIs completely locked until unlocked</span>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "11.5px", color: "#64748b" }}>
-            <CheckCircle2 size={14} color="#00f0ff" />
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "var(--color-ink-faint)" }}>
+            <CheckCircle2 size={14} color="var(--color-signal)" />
             <span>PBKDF2-HMAC-SHA256 Master Password Hashing (100k rounds)</span>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "11.5px", color: "#64748b" }}>
-            <CheckCircle2 size={14} color="#00f0ff" />
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "var(--color-ink-faint)" }}>
+            <CheckCircle2 size={14} color="var(--color-signal)" />
             <span>AES-256 Fernet Encrypted SQLite Vault for Kite & AI Keys</span>
           </div>
         </div>

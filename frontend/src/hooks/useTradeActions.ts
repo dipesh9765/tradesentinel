@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import confetti from "canvas-confetti";
 import { approveTradeApi, closePositionApi, rejectTradeApi, requestAiScan } from "../services/api";
 import { GenConsts, type AuthStateType } from "../constants";
 import { notificationManager } from "../services/notifications";
@@ -62,7 +61,6 @@ export function useTradeActions({
                 await approveTradeApi(proposalId);
                 setProposal(null);
                 await refreshAfterTrade();
-                confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
             } catch (err) {
                 showAlert("Trade execution error: " + errorMessage(err));
             }

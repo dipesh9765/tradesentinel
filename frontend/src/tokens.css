@@ -1,0 +1,75 @@
+/* Design tokens. Every colour, face, size and radius used by the app is declared here and nowhere
+ * else (the Hallmark floor: no literal colour or font-family past this block). The same file is
+ * shared by the other web projects; see ../DESIGN.md. Roles, not hues: change a role, change the
+ * whole product. */
+:root {
+  /* Surfaces: a page, one second neutral for bars and panels, and a raised field for inputs. */
+  --color-paper: #f6f7f3;
+  --color-panel: #eceee8;
+  --color-raised: #fbfbf8;
+  /* Text, in three steps. All three clear 4.5:1 on the paper and on the panel. */
+  --color-ink: #17211c;
+  --color-ink-soft: #434f48;
+  --color-ink-faint: #5f6b64;
+  /* Rules: decorative hairlines, and the stronger edge of a control (3:1 against the paper). */
+  --color-line: #d3d8cf;
+  --color-edge: #7a867e;
+  /* The one accent: the primary action, the current place and the keyboard focus. Nothing else. */
+  --color-signal: #bf3a1b;
+  --color-on-signal: #ffffff;
+  /* A found word in running text, and the three states a thing can be in. */
+  --color-mark: #f2dc9b;
+  --color-ok: #2c6e49;
+  --color-warn: #82530a;
+  --color-bad: #a3261c;
+
+  /* Faces. The display face carries the wordmark and page titles only; the UI face does the rest. */
+  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-data: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+
+  /* One type scale, ratio 1.2. */
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.2rem;
+  --text-xl: 1.44rem;
+  --text-2xl: 1.73rem;
+
+  /* Space on a 4px grid, and the shape of things: small radii, because tools are not pills. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --radius-1: 3px;
+  --radius-2: 6px;
+  --measure: 62rem;
+  --control: 2.5rem;
+
+  /* Motion is state, never decoration: two durations, transform and opacity only. */
+  --dur-micro: 90ms;
+  --dur-short: 160ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-paper: #121815;
+    --color-panel: #1a221d;
+    --color-raised: #161d19;
+    --color-ink: #e6ebe4;
+    --color-ink-soft: #b4beb6;
+    --color-ink-faint: #8f9b93;
+    --color-line: #2b362f;
+    --color-edge: #6a786f;
+    --color-signal: #ff7f5f;
+    --color-on-signal: #1a0e09;
+    --color-mark: #5b4b1a;
+    --color-ok: #6fcf97;
+    --color-warn: #e2b552;
+    --color-bad: #ff9186;
+  }
+}

@@ -41,13 +41,13 @@ describe("App security gate", () => {
     it("shows the vault check first", () => {
         vi.mocked(fetchAuthStatus).mockReturnValue(new Promise(() => {}));
         render(<App />);
-        expect(screen.getByText(/verifying tradesentinel security vault/i)).toBeInTheDocument();
+        expect(screen.getByText(/checking your session/i)).toBeInTheDocument();
     });
 
     it("shows the gatekeeper instead of the terminal when the vault is locked", async () => {
         vi.mocked(fetchAuthStatus).mockResolvedValue({ is_initialized: true, is_authenticated: false, is_vault_unlocked: false });
         render(<App />);
-        await waitFor(() => expect(screen.queryByText(/verifying tradesentinel security vault/i)).not.toBeInTheDocument());
+        await waitFor(() => expect(screen.queryByText(/checking your session/i)).not.toBeInTheDocument());
         expect(screen.queryByText(/Zerodha Kite Connect Setup Required/i)).not.toBeInTheDocument();
         expect(document.querySelector("input[type='password']")).not.toBeNull();
     });

@@ -37,7 +37,7 @@ export const Header: React.FC<HeaderProps> = ({
     if (!onToggleMode) return;
     if (!isLiveMode) {
       const confirmLive = window.confirm(
-        "⚠️ SWITCH TO LIVE MARKET EXECUTION?\n\nReal intraday orders will be submitted to your Zerodha account using real funds when trades are approved!\n\nAre you sure you want to activate LIVE TRADING?"
+        "Switch to live trading?\n\nReal intraday orders will be submitted to your Zerodha account using real funds when trades are approved!\n\nAre you sure you want to activate LIVE TRADING?"
       );
       if (confirmLive) {
         onToggleMode("LIVE");
@@ -56,38 +56,35 @@ export const Header: React.FC<HeaderProps> = ({
             width: "38px",
             height: "38px",
             borderRadius: "10px",
-            background: "linear-gradient(135deg, #00f0ff 0%, #0066ff 100%)",
+            background: "var(--color-signal)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            boxShadow: "0 0 15px rgba(0, 240, 255, 0.4)"
           }}>
-            <Zap size={22} color="#001020" />
+            <Zap size={22} color="var(--color-on-signal)" />
           </div>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <h1 style={{ fontSize: "20px", fontWeight: 800, letterSpacing: "-0.5px" }}>TradeSentinel</h1>
+              <h1 style={{ fontSize: "20px", fontWeight: 800, }}>TradeSentinel</h1>
               <span style={{
-                fontSize: "10px",
+                fontSize: "12px",
                 fontWeight: 700,
-                background: "rgba(0, 240, 255, 0.15)",
-                color: "var(--color-cyan)",
-                border: "1px solid var(--border-glow)",
+                background: "color-mix(in srgb, var(--color-signal) 15%, transparent)",
+                color: "var(--color-signal)",
+                border: "1px solid var(--color-edge)",
                 padding: "2px 6px",
                 borderRadius: "4px",
-                textTransform: "uppercase",
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "4px"
               }}>
-                <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--color-bull)" }}></span>
+                <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--color-ok)" }}></span>
                 Quant Engine v2
               </span>
             </div>
-            <div style={{ fontSize: "12px", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "6px" }}>
+            <div style={{ fontSize: "12px", color: "var(--color-ink-soft)", display: "flex", alignItems: "center", gap: "6px" }}>
               <span>Zerodha Kite</span>
-              <span>•</span>
-              <span style={{ color: "#a855f7" }}>A+ Setup Hunter</span>
+<span style={{ color: "var(--color-signal)" }}>A+ Setup Hunter</span>
             </div>
           </div>
         </div>
@@ -99,27 +96,26 @@ export const Header: React.FC<HeaderProps> = ({
           style={{
             padding: "6px 14px",
             borderRadius: "20px",
-            background: isLiveMode ? "rgba(0, 230, 153, 0.18)" : "rgba(0, 240, 255, 0.12)",
-            border: `1px solid ${isLiveMode ? "rgba(0, 230, 153, 0.5)" : "rgba(0, 240, 255, 0.4)"}`,
+            background: isLiveMode ? "color-mix(in srgb, var(--color-ok) 18%, transparent)" : "color-mix(in srgb, var(--color-signal) 12%, transparent)",
+            border: `1px solid ${isLiveMode ? "color-mix(in srgb, var(--color-ok) 50%, transparent)" : "color-mix(in srgb, var(--color-signal) 40%, transparent)"}`,
             display: "flex",
             alignItems: "center",
             gap: "7px",
             fontSize: "12px",
             fontWeight: 800,
             cursor: "pointer",
-            color: isLiveMode ? "var(--color-bull)" : "var(--color-cyan)",
-            boxShadow: isLiveMode ? "0 0 12px rgba(0, 230, 153, 0.25)" : "none",
-            transition: "all 0.2s ease"
+            color: isLiveMode ? "var(--color-ok)" : "var(--color-signal)",
+            transition: "background-color 160ms, border-color 160ms, color 160ms, opacity 160ms"
           }}
-          title={isLiveMode ? "⚡ LIVE EXECUTION ACTIVE: Real orders sent to Zerodha. Click to switch to Sandbox simulation." : "🧪 SANDBOX MODE ACTIVE: Orders simulated safely. Click to switch to Live execution."}
+          title={isLiveMode ? "Live trading is on: real orders sent to Zerodha. Click to switch to Sandbox simulation." : "Sandbox is on: orders simulated safely. Click to switch to Live execution."}
         >
           <ShieldCheck size={15} />
-          <span>{isLiveMode ? "⚡ LIVE TRADING (REAL ORDERS)" : "🧪 SANDBOX (PAPER SIMULATION)"}</span>
+          <span>{isLiveMode ? "Live trading (real orders)" : "Sandbox (paper trades)"}</span>
           <span style={{
-            fontSize: "10px",
+            fontSize: "12px",
             padding: "2px 6px",
             borderRadius: "10px",
-            background: isLiveMode ? "rgba(0, 230, 153, 0.25)" : "rgba(0, 240, 255, 0.2)",
+            background: isLiveMode ? "color-mix(in srgb, var(--color-ok) 25%, transparent)" : "color-mix(in srgb, var(--color-signal) 20%, transparent)",
             marginLeft: "2px"
           }}>
             Click to switch
@@ -130,14 +126,14 @@ export const Header: React.FC<HeaderProps> = ({
         <div style={{
           padding: "5px 12px",
           borderRadius: "12px",
-          background: "rgba(0, 230, 153, 0.08)",
-          border: "1px solid rgba(0, 230, 153, 0.3)",
+          background: "color-mix(in srgb, var(--color-ok) 8%, transparent)",
+          border: "1px solid color-mix(in srgb, var(--color-ok) 30%, transparent)",
           display: "flex",
           alignItems: "center",
           gap: "7px",
           fontSize: "12px",
           fontWeight: 600,
-          color: "var(--color-bull)"
+          color: "var(--color-ok)"
         }}>
           <Radar size={14} style={{ animation: "spin 4s linear infinite" }} />
           <span>Auto-Scanner Active (A+ Filter)</span>
@@ -147,20 +143,19 @@ export const Header: React.FC<HeaderProps> = ({
         <div style={{
           padding: "5px 10px",
           borderRadius: "12px",
-          background: "rgba(255, 255, 255, 0.04)",
-          border: "1px solid var(--border-color)",
+          background: "color-mix(in srgb, var(--color-ink) 4%, transparent)",
+          border: "1px solid var(--color-line)",
           display: "flex",
           alignItems: "center",
           gap: "6px",
-          fontSize: "11px",
-          color: kiteConnected ? "var(--text-muted)" : "#ffb300"
+          fontSize: "12px",
+          color: kiteConnected ? "var(--color-ink-soft)" : "var(--color-warn)"
         }}>
           <span style={{
             width: "6px",
             height: "6px",
             borderRadius: "50%",
-            background: kiteConnected ? "var(--color-bull)" : "#ffb300",
-            boxShadow: kiteConnected ? "0 0 6px var(--color-bull)" : "none"
+            background: kiteConnected ? "var(--color-ok)" : "var(--color-warn)",
           }} />
           <span>{kiteConnected ? "Kite Feed Connected" : "Kite Disconnected"}</span>
         </div>
@@ -184,10 +179,10 @@ export const Header: React.FC<HeaderProps> = ({
             style={{
               padding: "6px 10px",
               borderRadius: "8px",
-              background: "rgba(0, 230, 153, 0.1)",
-              border: "1px solid rgba(0, 230, 153, 0.25)",
-              color: "var(--color-bull)",
-              fontSize: "11px",
+              background: "color-mix(in srgb, var(--color-ok) 10%, transparent)",
+              border: "1px solid color-mix(in srgb, var(--color-ok) 25%, transparent)",
+              color: "var(--color-ok)",
+              fontSize: "12px",
               fontWeight: 600,
               display: "flex",
               alignItems: "center",
@@ -209,9 +204,8 @@ export const Header: React.FC<HeaderProps> = ({
             alignItems: "center",
             gap: "12px",
             borderRadius: "10px",
-            background: "rgba(10, 16, 29, 0.7)",
-            border: "1px solid rgba(0, 240, 255, 0.25)",
-            boxShadow: "0 0 15px rgba(0, 240, 255, 0.06)"
+            background: "color-mix(in srgb, var(--color-paper) 70%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--color-signal) 25%, transparent)",
           }}
         >
           <div
@@ -219,12 +213,12 @@ export const Header: React.FC<HeaderProps> = ({
               width: "32px",
               height: "32px",
               borderRadius: "8px",
-              background: kiteConnected ? "rgba(0, 240, 255, 0.12)" : "rgba(255, 179, 0, 0.12)",
-              border: `1px solid ${kiteConnected ? "rgba(0, 240, 255, 0.3)" : "rgba(255, 179, 0, 0.3)"}`,
+              background: kiteConnected ? "color-mix(in srgb, var(--color-signal) 12%, transparent)" : "color-mix(in srgb, var(--color-warn) 12%, transparent)",
+              border: `1px solid ${kiteConnected ? "color-mix(in srgb, var(--color-signal) 30%, transparent)" : "color-mix(in srgb, var(--color-warn) 30%, transparent)"}`,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: kiteConnected ? "var(--color-cyan)" : "#ffb300"
+              color: kiteConnected ? "var(--color-signal)" : "var(--color-warn)"
             }}
             title={kiteConnected ? "Zerodha Kite Connected" : "Kite Disconnected"}
           >
@@ -233,16 +227,16 @@ export const Header: React.FC<HeaderProps> = ({
 
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <span style={{ fontSize: "10px", color: "var(--text-dim)", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.4px" }}>
+              <span style={{ fontSize: "12px", color: "var(--color-ink-faint)", fontWeight: 700, }}>
                 Kite Balance
               </span>
               {kiteBalance?.equity && (
                 <span style={{
-                  fontSize: "9px",
+                  fontSize: "12px",
                   padding: "1px 5px",
                   borderRadius: "4px",
-                  background: "rgba(0, 230, 153, 0.15)",
-                  color: "var(--color-bull)",
+                  background: "color-mix(in srgb, var(--color-ok) 15%, transparent)",
+                  color: "var(--color-ok)",
                   fontWeight: 600
                 }}>
                   Live
@@ -257,32 +251,32 @@ export const Header: React.FC<HeaderProps> = ({
                   style={{
                     fontSize: "15px",
                     fontWeight: 700,
-                    color: "var(--color-cyan)",
-                    textShadow: "0 0 10px rgba(0, 240, 255, 0.3)"
+                    color: "var(--color-signal)",
+                    textShadow: "0 0 10px color-mix(in srgb, var(--color-signal) 30%, transparent)"
                   }}
                   title={`Available Cash: ₹${kiteBalance.equity.available_cash.toLocaleString('en-IN', { minimumFractionDigits: 2 })} | Total Net Margin: ₹${kiteBalance.equity.net.toLocaleString('en-IN', { minimumFractionDigits: 2 })} | Utilised: ₹${kiteBalance.equity.utilised.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
                 >
                   ₹{kiteBalance.equity.available_cash.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
-                <span style={{ fontSize: "10px", color: "var(--text-dim)" }}>
+                <span style={{ fontSize: "12px", color: "var(--color-ink-faint)" }}>
                   rem.
                 </span>
               </div>
             ) : kiteConnected && isLoadingBalance ? (
-              <div style={{ fontSize: "12px", color: "var(--text-muted)", fontStyle: "italic" }}>
+              <div style={{ fontSize: "12px", color: "var(--color-ink-soft)", fontStyle: "italic" }}>
                 Fetching...
               </div>
             ) : kiteConnected ? (
               <div
                 onClick={onRefreshBalance}
-                style={{ fontSize: "12px", color: "var(--color-cyan)", cursor: "pointer", fontWeight: 600 }}
+                style={{ fontSize: "12px", color: "var(--color-signal)", cursor: "pointer", fontWeight: 600 }}
               >
                 Click Refresh
               </div>
             ) : (
               <div
                 onClick={onOpenSettings}
-                style={{ fontSize: "12px", color: "#ffb300", cursor: "pointer", fontWeight: 600 }}
+                style={{ fontSize: "12px", color: "var(--color-warn)", cursor: "pointer", fontWeight: 600 }}
                 title="Click to configure credentials & login"
               >
                 Not Connected
@@ -303,9 +297,9 @@ export const Header: React.FC<HeaderProps> = ({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                background: "rgba(255, 255, 255, 0.05)",
-                border: "1px solid var(--border-color)",
-                color: "var(--text-main)",
+                background: "color-mix(in srgb, var(--color-ink) 5%, transparent)",
+                border: "1px solid var(--color-line)",
+                color: "var(--color-ink)",
                 marginLeft: "2px"
               }}
               title={
@@ -318,7 +312,7 @@ export const Header: React.FC<HeaderProps> = ({
                 size={14}
                 style={{
                   animation: isLoadingBalance ? "spin 1s linear infinite" : "none",
-                  color: isLoadingBalance ? "var(--color-cyan)" : "inherit"
+                  color: isLoadingBalance ? "var(--color-signal)" : "inherit"
                 }}
               />
             </button>
@@ -328,20 +322,20 @@ export const Header: React.FC<HeaderProps> = ({
         {/* P&L Tracker */}
         <div className="glass-panel" style={{ padding: "6px 14px", display: "flex", alignItems: "center", gap: "12px", borderRadius: "10px" }}>
           <div>
-            <div style={{ fontSize: "10px", color: "var(--text-dim)", textTransform: "uppercase" }}>Total P&L</div>
+            <div style={{ fontSize: "12px", color: "var(--color-ink-faint)", }}>Total P&L</div>
             <div className="font-mono" style={{
               fontSize: "15px",
               fontWeight: 700,
-              color: isProfit ? "var(--color-bull)" : "var(--color-bear)",
-              textShadow: isProfit ? "0 0 10px var(--color-bull-glow)" : "0 0 10px var(--color-bear-glow)"
+              color: isProfit ? "var(--color-ok)" : "var(--color-bad)",
+              textShadow: isProfit ? "0 0 10px transparent" : "0 0 10px transparent"
             }}>
               {isProfit ? "+" : ""}₹{portfolio?.total_pnl.toFixed(2) || "0.00"}
             </div>
           </div>
-          <div style={{ width: "1px", height: "20px", background: "var(--border-color)" }} />
+          <div style={{ width: "1px", height: "20px", background: "var(--color-line)" }} />
           <div>
-            <div style={{ fontSize: "10px", color: "var(--text-dim)", textTransform: "uppercase" }}>Lot Size</div>
-            <div className="font-mono" style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-main)" }}>
+            <div style={{ fontSize: "12px", color: "var(--color-ink-faint)", }}>Lot Size</div>
+            <div className="font-mono" style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-ink)" }}>
               1 Lot (Safe)
             </div>
           </div>
@@ -366,11 +360,11 @@ export const Header: React.FC<HeaderProps> = ({
             title="Lock Security Vault & Logout"
             style={{
               padding: "7px 12px",
-              borderColor: "rgba(255, 59, 48, 0.3)",
-              color: "#ff8080"
+              borderColor: "color-mix(in srgb, var(--color-bad) 30%, transparent)",
+              color: "var(--color-bad)"
             }}
           >
-            <Lock size={14} color="#ff8080" />
+            <Lock size={14} color="var(--color-bad)" />
             <span style={{ fontSize: "12px" }}>Lock Vault</span>
           </button>
         )}

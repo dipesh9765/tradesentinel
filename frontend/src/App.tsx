@@ -172,14 +172,14 @@ export const App: React.FC = () => {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    background: "#060911",
-                    color: "#00f0ff",
+                    background: "var(--color-paper)",
+                    color: "var(--color-signal)",
                 }}
             >
                 <div style={{ textAlign: "center" }}>
                     <Lock size={36} style={{ animation: "pulse 1.5s infinite", margin: "0 auto 16px" }} />
-                    <div style={{ fontSize: "16px", fontWeight: 700, letterSpacing: "0.5px" }}>
-                        Verifying TradeSentinel Security Vault...
+                    <div style={{ fontSize: "16px", fontWeight: 700, }}>
+                        Checking your session
                     </div>
                 </div>
             </div>

@@ -21,7 +21,7 @@ export const Watchlist: React.FC<WatchlistProps> = ({
     <div className="glass-panel" style={{ padding: "18px", height: "100%" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
         <h3 style={{ fontSize: "16px", fontWeight: 700 }}>Market Watch</h3>
-        <span style={{ fontSize: "11px", color: "var(--text-dim)", textTransform: "uppercase" }}>
+        <span style={{ fontSize: "12px", color: "var(--color-ink-faint)", }}>
           Reliable Blue-Chips & Indices
         </span>
       </div>
@@ -38,10 +38,10 @@ export const Watchlist: React.FC<WatchlistProps> = ({
               style={{
                 padding: "10px 14px",
                 borderRadius: "10px",
-                background: isSelected ? "rgba(0, 240, 255, 0.08)" : "rgba(255, 255, 255, 0.03)",
-                border: `1px solid ${isSelected ? "var(--border-glow)" : "var(--border-color)"}`,
+                background: isSelected ? "color-mix(in srgb, var(--color-signal) 8%, transparent)" : "color-mix(in srgb, var(--color-ink) 3%, transparent)",
+                border: `1px solid ${isSelected ? "var(--color-edge)" : "var(--color-line)"}`,
                 cursor: "pointer",
-                transition: "all 0.2s ease",
+                transition: "background-color 160ms, border-color 160ms, color 160ms, opacity 160ms",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center"
@@ -49,21 +49,20 @@ export const Watchlist: React.FC<WatchlistProps> = ({
             >
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <span style={{ fontWeight: 700, fontSize: "14px", color: isSelected ? "var(--color-cyan)" : "var(--text-main)" }}>
+                  <span style={{ fontWeight: 700, fontSize: "14px", color: isSelected ? "var(--color-signal)" : "var(--color-ink)" }}>
                     {quote.symbol}
                   </span>
                   {quote.call_option && (
-                    <span style={{ fontSize: "9px", background: "rgba(168, 85, 247, 0.2)", color: "#c084fc", padding: "1px 4px", borderRadius: "3px" }}>
+                    <span style={{ fontSize: "12px", background: "color-mix(in srgb, var(--color-signal) 20%, transparent)", color: "var(--color-signal)", padding: "1px 4px", borderRadius: "3px" }}>
                       OPT
                     </span>
                   )}
                 </div>
 
                 {quote.call_option && quote.put_option && (
-                  <div style={{ fontSize: "10px", color: "var(--text-dim)", marginTop: "2px", display: "flex", gap: "6px" }}>
+                  <div style={{ fontSize: "12px", color: "var(--color-ink-faint)", marginTop: "2px", display: "flex", gap: "6px" }}>
                     <span>CE: ₹{quote.call_option.ltp}</span>
-                    <span>•</span>
-                    <span>PE: ₹{quote.put_option.ltp}</span>
+<span>PE: ₹{quote.put_option.ltp}</span>
                   </div>
                 )}
               </div>
@@ -76,9 +75,9 @@ export const Watchlist: React.FC<WatchlistProps> = ({
                   <div
                     className="font-mono"
                     style={{
-                      fontSize: "11px",
+                      fontSize: "12px",
                       fontWeight: 600,
-                      color: isBull ? "var(--color-bull)" : "var(--color-bear)",
+                      color: isBull ? "var(--color-ok)" : "var(--color-bad)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "flex-end",
@@ -101,11 +100,11 @@ export const Watchlist: React.FC<WatchlistProps> = ({
                   style={{
                     padding: "6px 8px",
                     borderRadius: "6px",
-                    borderColor: isSelected ? "var(--border-glow)" : undefined
+                    borderColor: isSelected ? "var(--color-edge)" : undefined
                   }}
                   title={`Scan ${quote.symbol}`}
                 >
-                  <Sparkles size={13} color="var(--color-cyan)" />
+                  <Sparkles size={13} color="var(--color-signal)" />
                 </button>
               </div>
             </div>

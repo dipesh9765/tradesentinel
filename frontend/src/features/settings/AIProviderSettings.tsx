@@ -42,7 +42,7 @@ export const AIProviderSettings: React.FC = () => {
   }, []);
 
   if (!config) {
-    return message ? <div style={{ fontSize: "12px", color: "var(--color-bear)" }}>{message.text}</div> : null;
+    return message ? <div style={{ fontSize: "12px", color: "var(--color-bad)" }}>{message.text}</div> : null;
   }
 
   const info = config.providers.find((p) => p.id === selected)!;
@@ -100,17 +100,17 @@ export const AIProviderSettings: React.FC = () => {
 
   return (
     <div style={{
-      background: "#0f1523",
+      background: "var(--color-panel)",
       padding: "16px",
       borderRadius: "12px",
-      border: "1px solid rgba(255, 255, 255, 0.1)",
+      border: "1px solid color-mix(in srgb, var(--color-ink) 10%, transparent)",
       display: "flex",
       flexDirection: "column",
       gap: "14px"
     }}>
       <div>
-        <span style={{ fontSize: "13px", fontWeight: 700, color: "#ffffff", display: "flex", alignItems: "center", gap: "6px" }}>
-          <Sparkles size={15} color="var(--color-cyan)" /> AI Provider & Model
+        <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--color-ink)", display: "flex", alignItems: "center", gap: "6px" }}>
+          <Sparkles size={15} color="var(--color-signal)" /> AI Provider & Model
         </span>
         <span className="form-hint">
           The AI explains each trade. Trade decisions and price levels always come from the rules engine, so the AI can never change your entry or stop-loss.
@@ -129,13 +129,13 @@ export const AIProviderSettings: React.FC = () => {
                 padding: "12px",
                 borderRadius: "10px",
                 cursor: "pointer",
-                border: `2px solid ${picked ? "var(--color-cyan)" : "rgba(255, 255, 255, 0.1)"}`,
-                background: picked ? "rgba(0, 240, 255, 0.12)" : "#101625"
+                border: `2px solid ${picked ? "var(--color-signal)" : "color-mix(in srgb, var(--color-ink) 10%, transparent)"}`,
+                background: picked ? "color-mix(in srgb, var(--color-signal) 12%, transparent)" : "var(--color-panel)"
               }}
             >
-              <div style={{ fontWeight: 700, fontSize: "13px", color: picked ? "var(--color-cyan)" : "#ffffff" }}>{p.label}</div>
-              <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "4px" }}>
-                {p.has_key ? "Key saved" : "No key"}{active ? " · Active" : ""}
+              <div style={{ fontWeight: 700, fontSize: "13px", color: picked ? "var(--color-signal)" : "var(--color-ink)" }}>{p.label}</div>
+              <div style={{ fontSize: "12px", color: "var(--color-ink-soft)", marginTop: "4px" }}>
+                {p.has_key ? "Key saved" : "No key"}{active ? ", active" : ""}
               </div>
             </div>
           );
@@ -178,7 +178,7 @@ export const AIProviderSettings: React.FC = () => {
             href={info.key_url}
             target="_blank"
             rel="noreferrer"
-            style={{ fontSize: "11.5px", color: "var(--color-cyan)", textDecoration: "none", display: "flex", alignItems: "center", gap: "3px" }}
+            style={{ fontSize: "12px", color: "var(--color-signal)", textDecoration: "none", display: "flex", alignItems: "center", gap: "3px" }}
           >
             Get API key <ExternalLink size={11} />
           </a>
@@ -219,11 +219,11 @@ export const AIProviderSettings: React.FC = () => {
 
       {message && (
         <div style={{
-          fontSize: "11.5px",
+          fontSize: "12px",
           display: "flex",
           alignItems: "center",
           gap: "6px",
-          color: message.kind === "ok" ? "var(--color-bull)" : "var(--color-bear)"
+          color: message.kind === "ok" ? "var(--color-ok)" : "var(--color-bad)"
         }}>
           {message.kind === "ok" ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
           <span>{message.text}</span>

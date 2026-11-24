@@ -26,8 +26,8 @@ export const VoiceRadar: React.FC<VoiceRadarProps> = ({
         justifyContent: "space-between",
         flexWrap: "wrap",
         gap: "14px",
-        background: "rgba(16, 22, 34, 0.9)",
-        borderColor: "rgba(0, 240, 255, 0.2)"
+        background: "var(--color-raised)",
+        borderColor: "color-mix(in srgb, var(--color-signal) 20%, transparent)"
       }}>
         {/* Office Silent Mode Indicator */}
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -35,24 +35,24 @@ export const VoiceRadar: React.FC<VoiceRadarProps> = ({
             width: "36px",
             height: "36px",
             borderRadius: "50%",
-            background: "rgba(0, 240, 255, 0.12)",
-            border: "1px solid var(--border-glow)",
+            background: "color-mix(in srgb, var(--color-signal) 12%, transparent)",
+            border: "1px solid var(--color-edge)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center"
           }}>
-            <Briefcase size={18} color="var(--color-cyan)" />
+            <Briefcase size={18} color="var(--color-signal)" />
           </div>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--color-cyan)" }}>
+              <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--color-signal)" }}>
                 Office Silent Mode Active
               </span>
-              <span style={{ fontSize: "10px", background: "rgba(0, 230, 153, 0.15)", color: "var(--color-bull)", padding: "1px 6px", borderRadius: "4px" }}>
-                DISCREET
+              <span style={{ fontSize: "12px", background: "color-mix(in srgb, var(--color-ok) 15%, transparent)", color: "var(--color-ok)", padding: "1px 6px", borderRadius: "4px" }}>
+                Discreet
               </span>
             </div>
-            <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>
+            <div style={{ fontSize: "12px", color: "var(--color-ink-soft)", marginTop: "2px" }}>
               Voice is muted. Notifications will pop up as Windows alerts, Telegram, or Discord.
             </div>
           </div>
@@ -64,26 +64,24 @@ export const VoiceRadar: React.FC<VoiceRadarProps> = ({
             display: "flex",
             alignItems: "center",
             gap: "8px",
-            background: "rgba(0, 0, 0, 0.35)",
+            background: "color-mix(in srgb, var(--color-ink) 35%, transparent)",
             padding: "5px 12px",
             borderRadius: "8px",
-            border: "1px solid var(--border-color)",
+            border: "1px solid var(--color-line)",
             fontSize: "12px"
           }}>
-            <Keyboard size={14} color="var(--text-dim)" />
-            <span style={{ color: "var(--text-dim)" }}>Shortcuts:</span>
-            <span style={{ color: "var(--color-bull)", fontWeight: 700 }}>[A] / [Enter]</span> Approve
-            <span style={{ color: "var(--text-dim)" }}>•</span>
-            <span style={{ color: "var(--color-bear)", fontWeight: 700 }}>[R] / [Esc]</span> Reject
-            <span style={{ color: "var(--text-dim)" }}>•</span>
-            <span style={{ color: "var(--color-cyan)", fontWeight: 700 }}>[S]</span> Scan
+            <Keyboard size={14} color="var(--color-ink-faint)" />
+            <span style={{ color: "var(--color-ink-faint)" }}>Shortcuts:</span>
+            <span style={{ color: "var(--color-ok)", fontWeight: 700 }}>[A] / [Enter]</span> Approve
+<span style={{ color: "var(--color-bad)", fontWeight: 700 }}>[R] / [Esc]</span> Reject
+<span style={{ color: "var(--color-signal)", fontWeight: 700 }}>[S]</span> Scan
           </div>
 
           <div style={{ display: "flex", gap: "6px" }}>
             <button
               onClick={() => onSimulateCommand("approve")}
               className="btn btn-secondary"
-              style={{ padding: "4px 8px", fontSize: "11px", borderColor: "rgba(0, 230, 153, 0.3)", color: "var(--color-bull)" }}
+              style={{ padding: "4px 8px", fontSize: "12px", borderColor: "color-mix(in srgb, var(--color-ok) 30%, transparent)", color: "var(--color-ok)" }}
               title="Quick Approve Trade (Key: A)"
             >
               <CheckCircle size={12} /> Approve
@@ -91,7 +89,7 @@ export const VoiceRadar: React.FC<VoiceRadarProps> = ({
             <button
               onClick={() => onSimulateCommand("reject")}
               className="btn btn-secondary"
-              style={{ padding: "4px 8px", fontSize: "11px", borderColor: "rgba(255, 51, 102, 0.3)", color: "var(--color-bear)" }}
+              style={{ padding: "4px 8px", fontSize: "12px", borderColor: "color-mix(in srgb, var(--color-bad) 30%, transparent)", color: "var(--color-bad)" }}
               title="Quick Reject Trade (Key: R)"
             >
               <XCircle size={12} /> Reject
@@ -115,41 +113,41 @@ export const VoiceRadar: React.FC<VoiceRadarProps> = ({
               height: "44px",
               borderRadius: "50%",
               background: isSpeaking
-                ? "linear-gradient(135deg, #a855f7 0%, #6366f1 100%)"
+                ? "var(--color-signal)"
                 : isListening
-                ? "linear-gradient(135deg, #00f0ff 0%, #0088ff 100%)"
-                : "rgba(255, 255, 255, 0.1)",
+                ? "var(--color-signal)"
+                : "color-mix(in srgb, var(--color-ink) 10%, transparent)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              transition: "all 0.3s ease"
+              transition: "background-color 160ms, border-color 160ms, color 160ms, opacity 160ms"
             }}
           >
             {isSpeaking ? (
-              <Volume2 size={22} color="#ffffff" />
+              <Volume2 size={22} color="var(--color-ink)" />
             ) : (
-              <Mic size={22} color={isListening ? "#001020" : "var(--text-muted)"} />
+              <Mic size={22} color={isListening ? "var(--color-on-signal)" : "var(--color-ink-soft)"} />
             )}
           </div>
         </div>
 
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--text-main)" }}>
+            <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--color-ink)" }}>
               {isSpeaking ? "AI Co-Pilot is Speaking..." : isListening ? "Verbal Trading Radar Active" : "Voice Listening Standby"}
             </span>
             {isSpeaking && (
               <div className="sound-wave">
-                <div className="sound-bar" style={{ backgroundColor: "#a855f7" }} />
-                <div className="sound-bar" style={{ backgroundColor: "#a855f7" }} />
-                <div className="sound-bar" style={{ backgroundColor: "#a855f7" }} />
-                <div className="sound-bar" style={{ backgroundColor: "#a855f7" }} />
-                <div className="sound-bar" style={{ backgroundColor: "#a855f7" }} />
+                <div className="sound-bar" style={{ backgroundColor: "var(--color-signal)" }} />
+                <div className="sound-bar" style={{ backgroundColor: "var(--color-signal)" }} />
+                <div className="sound-bar" style={{ backgroundColor: "var(--color-signal)" }} />
+                <div className="sound-bar" style={{ backgroundColor: "var(--color-signal)" }} />
+                <div className="sound-bar" style={{ backgroundColor: "var(--color-signal)" }} />
               </div>
             )}
           </div>
-          <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "2px" }}>
-            Speak into your mic: <span style={{ color: "var(--color-bull)", fontWeight: 600 }}>"Approve"</span> to confirm trade, or <span style={{ color: "var(--color-bear)", fontWeight: 600 }}>"Reject"</span> to dismiss.
+          <div style={{ fontSize: "12px", color: "var(--color-ink-soft)", marginTop: "2px" }}>
+            Speak into your mic: <span style={{ color: "var(--color-ok)", fontWeight: 600 }}>"Approve"</span> to confirm trade, or <span style={{ color: "var(--color-bad)", fontWeight: 600 }}>"Reject"</span> to dismiss.
           </div>
         </div>
       </div>
@@ -158,15 +156,15 @@ export const VoiceRadar: React.FC<VoiceRadarProps> = ({
       <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
         {transcript && (
           <div style={{
-            background: "rgba(0, 0, 0, 0.4)",
-            border: "1px solid var(--border-glow)",
+            background: "color-mix(in srgb, var(--color-ink) 40%, transparent)",
+            border: "1px solid var(--color-edge)",
             borderRadius: "8px",
             padding: "6px 14px",
             display: "flex",
             alignItems: "center",
             gap: "8px",
             fontSize: "13px",
-            color: "var(--color-cyan)"
+            color: "var(--color-signal)"
           }}>
             <MessageSquare size={14} />
             <span>Heard: <em>"{transcript}"</em></span>
@@ -178,7 +176,7 @@ export const VoiceRadar: React.FC<VoiceRadarProps> = ({
           <button
             onClick={() => onSimulateCommand("approve")}
             className="btn btn-secondary"
-            style={{ padding: "5px 10px", fontSize: "11px", borderColor: "rgba(0, 230, 153, 0.3)", color: "var(--color-bull)" }}
+            style={{ padding: "5px 10px", fontSize: "12px", borderColor: "color-mix(in srgb, var(--color-ok) 30%, transparent)", color: "var(--color-ok)" }}
             title="Simulate speaking 'Approve'"
           >
             Voice: "Approve"
@@ -186,7 +184,7 @@ export const VoiceRadar: React.FC<VoiceRadarProps> = ({
           <button
             onClick={() => onSimulateCommand("reject")}
             className="btn btn-secondary"
-            style={{ padding: "5px 10px", fontSize: "11px", borderColor: "rgba(255, 51, 102, 0.3)", color: "var(--color-bear)" }}
+            style={{ padding: "5px 10px", fontSize: "12px", borderColor: "color-mix(in srgb, var(--color-bad) 30%, transparent)", color: "var(--color-bad)" }}
             title="Simulate speaking 'Reject'"
           >
             Voice: "Reject"
@@ -194,7 +192,7 @@ export const VoiceRadar: React.FC<VoiceRadarProps> = ({
           <button
             onClick={() => onSimulateCommand("scan nifty")}
             className="btn btn-secondary"
-            style={{ padding: "5px 10px", fontSize: "11px", borderColor: "rgba(0, 240, 255, 0.3)", color: "var(--color-cyan)" }}
+            style={{ padding: "5px 10px", fontSize: "12px", borderColor: "color-mix(in srgb, var(--color-signal) 30%, transparent)", color: "var(--color-signal)" }}
             title="Simulate speaking 'Scan Nifty'"
           >
             Voice: "Scan"

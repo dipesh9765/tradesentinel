@@ -11,11 +11,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "check:design": "node scripts/check-design.mjs --skip=inline-style",
+    "check": "npm run lint && npm run typecheck && npm run check:design && npm test"
   },
   "dependencies": {
-    "@types/canvas-confetti": "^1.9.0",
-    "canvas-confetti": "^1.9.4",
     "lightweight-charts": "^5.2.1",
     "lucide-react": "^1.45.0",
     "react": "^19.2.8",

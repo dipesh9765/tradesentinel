@@ -107,7 +107,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setSessionSuccessMessage(null);
     try {
       await generateKiteSessionApi(pastedRedirectInput.trim());
-      setSessionSuccessMessage("✅ Zerodha Kite daily session authenticated successfully!");
+      setSessionSuccessMessage("Zerodha Kite daily session authenticated successfully!");
       setPastedRedirectInput("");
       const updated = await fetchSettingsApi();
       setConfiguredStatus(updated);
@@ -136,8 +136,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       left: 0,
       right: 0,
       bottom: 0,
-      background: "rgba(0, 0, 0, 0.82)",
-      backdropFilter: "blur(10px)",
+      background: "color-mix(in srgb, var(--color-ink) 82%, transparent)",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
@@ -151,29 +150,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         overflowY: "auto",
         padding: "26px",
         borderRadius: "16px",
-        background: "#0c111d",
-        border: "1px solid rgba(0, 240, 255, 0.25)",
-        boxShadow: "0 12px 40px rgba(0, 0, 0, 0.8), 0 0 25px rgba(0, 240, 255, 0.15)"
+        background: "var(--color-raised)",
+        border: "1px solid color-mix(in srgb, var(--color-signal) 25%, transparent)",
       }}>
         {/* Modal Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "22px", paddingBottom: "14px", borderBottom: "1px solid rgba(255, 255, 255, 0.1)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "22px", paddingBottom: "14px", borderBottom: "1px solid color-mix(in srgb, var(--color-ink) 10%, transparent)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <div style={{ background: "rgba(0, 240, 255, 0.15)", padding: "8px", borderRadius: "8px", display: "flex" }}>
-              <Key size={20} color="var(--color-cyan)" />
+            <div style={{ background: "color-mix(in srgb, var(--color-signal) 15%, transparent)", padding: "8px", borderRadius: "8px", display: "flex" }}>
+              <Key size={20} color="var(--color-signal)" />
             </div>
             <div>
-              <h2 style={{ fontSize: "19px", fontWeight: 800, color: "#ffffff", letterSpacing: "0.3px" }}>Trading & API Configuration</h2>
-              <p style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "2px" }}>Set your Zerodha Kite keys, AI models, and notification alerts</p>
+              <h2 style={{ fontSize: "19px", fontWeight: 800, color: "var(--color-ink)", }}>Trading & API Configuration</h2>
+              <p style={{ fontSize: "12px", color: "var(--color-ink-soft)", marginTop: "2px" }}>Set your Zerodha Kite keys, AI models, and notification alerts</p>
             </div>
           </div>
           <button
             onClick={onClose}
             aria-label="Close"
             style={{
-              background: "rgba(255, 255, 255, 0.05)",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
+              background: "color-mix(in srgb, var(--color-ink) 5%, transparent)",
+              border: "1px solid color-mix(in srgb, var(--color-ink) 10%, transparent)",
               borderRadius: "8px",
-              color: "#cbd5e1",
+              color: "var(--color-ink-soft)",
               cursor: "pointer",
               padding: "6px",
               display: "flex",
@@ -186,8 +184,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         {/* SQLite Encrypted Vault Notice */}
         <div style={{
-          background: "rgba(0, 240, 255, 0.08)",
-          border: "1px solid rgba(0, 240, 255, 0.25)",
+          background: "color-mix(in srgb, var(--color-signal) 8%, transparent)",
+          border: "1px solid color-mix(in srgb, var(--color-signal) 25%, transparent)",
           borderRadius: "10px",
           padding: "12px 14px",
           display: "flex",
@@ -195,9 +193,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           gap: "10px",
           marginBottom: "20px"
         }}>
-          <Lock size={18} color="#00f0ff" style={{ flexShrink: 0 }} />
-          <div style={{ fontSize: "12px", color: "#cbd5e1", lineHeight: "1.4" }}>
-            <strong style={{ color: "#00f0ff" }}>Encrypted Local Database Vault:</strong> All API keys and secrets entered here are encrypted with AES-256 Fernet using your Master Password. Raw keys are never stored in plain text or exposed to unauthorized parties.
+          <Lock size={18} color="var(--color-signal)" style={{ flexShrink: 0 }} />
+          <div style={{ fontSize: "12px", color: "var(--color-ink-soft)", lineHeight: "1.4" }}>
+            <strong style={{ color: "var(--color-signal)" }}>Encrypted Local Database Vault:</strong> All API keys and secrets entered here are encrypted with AES-256 Fernet using your Master Password. Raw keys are never stored in plain text or exposed to unauthorized parties.
           </div>
         </div>
 
@@ -206,7 +204,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <div className="form-group">
             <div className="form-label">
               <span>Trading Execution Engine</span>
-              <span className="form-label-badge" style={{ color: mode === "LIVE" ? "var(--color-bull)" : "var(--color-cyan)" }}>
+              <span className="form-label-badge" style={{ color: mode === "LIVE" ? "var(--color-ok)" : "var(--color-signal)" }}>
                 Active: {mode}
               </span>
             </div>
@@ -217,18 +215,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   padding: "14px",
                   borderRadius: "10px",
                   cursor: "pointer",
-                  border: `2px solid ${mode === "PAPER" ? "var(--color-cyan)" : "rgba(255, 255, 255, 0.1)"}`,
-                  background: mode === "PAPER" ? "rgba(0, 240, 255, 0.12)" : "#101625",
-                  transition: "all 0.2s ease"
+                  border: `2px solid ${mode === "PAPER" ? "var(--color-signal)" : "color-mix(in srgb, var(--color-ink) 10%, transparent)"}`,
+                  background: mode === "PAPER" ? "color-mix(in srgb, var(--color-signal) 12%, transparent)" : "var(--color-panel)",
+                  transition: "background-color 160ms, border-color 160ms, color 160ms, opacity 160ms"
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span style={{ fontWeight: 700, fontSize: "14.5px", color: mode === "PAPER" ? "var(--color-cyan)" : "#ffffff" }}>
+                  <span style={{ fontWeight: 700, fontSize: "14.5px", color: mode === "PAPER" ? "var(--color-signal)" : "var(--color-ink)" }}>
                     Paper Sandbox
                   </span>
-                  {mode === "PAPER" && <ShieldCheck size={16} color="var(--color-cyan)" />}
+                  {mode === "PAPER" && <ShieldCheck size={16} color="var(--color-signal)" />}
                 </div>
-                <div style={{ fontSize: "12px", color: "#94a3b8", marginTop: "4px" }}>
+                <div style={{ fontSize: "12px", color: "var(--color-ink-soft)", marginTop: "4px" }}>
                   Virtual simulation (Lot locked to 1)
                 </div>
               </div>
@@ -239,18 +237,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   padding: "14px",
                   borderRadius: "10px",
                   cursor: "pointer",
-                  border: `2px solid ${mode === "LIVE" ? "var(--color-bull)" : "rgba(255, 255, 255, 0.1)"}`,
-                  background: mode === "LIVE" ? "rgba(0, 230, 153, 0.12)" : "#101625",
-                  transition: "all 0.2s ease"
+                  border: `2px solid ${mode === "LIVE" ? "var(--color-ok)" : "color-mix(in srgb, var(--color-ink) 10%, transparent)"}`,
+                  background: mode === "LIVE" ? "color-mix(in srgb, var(--color-ok) 12%, transparent)" : "var(--color-panel)",
+                  transition: "background-color 160ms, border-color 160ms, color 160ms, opacity 160ms"
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span style={{ fontWeight: 700, fontSize: "14.5px", color: mode === "LIVE" ? "var(--color-bull)" : "#ffffff" }}>
+                  <span style={{ fontWeight: 700, fontSize: "14.5px", color: mode === "LIVE" ? "var(--color-ok)" : "var(--color-ink)" }}>
                     Zerodha Kite Live
                   </span>
-                  {mode === "LIVE" && <ShieldCheck size={16} color="var(--color-bull)" />}
+                  {mode === "LIVE" && <ShieldCheck size={16} color="var(--color-ok)" />}
                 </div>
-                <div style={{ fontSize: "12px", color: "#94a3b8", marginTop: "4px" }}>
+                <div style={{ fontSize: "12px", color: "var(--color-ink-soft)", marginTop: "4px" }}>
                   Real MIS Intraday Orders (Kite API)
                 </div>
               </div>
@@ -259,17 +257,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           {/* Section 2: Zerodha Kite Connect Credentials */}
           <div style={{
-            background: "#0f1523",
+            background: "var(--color-panel)",
             padding: "16px",
             borderRadius: "12px",
-            border: "1px solid rgba(255, 255, 255, 0.1)",
+            border: "1px solid color-mix(in srgb, var(--color-ink) 10%, transparent)",
             display: "flex",
             flexDirection: "column",
             gap: "14px"
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
-                <span style={{ fontSize: "13px", fontWeight: 700, color: "#ffffff", display: "flex", alignItems: "center", gap: "6px" }}>
+                <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--color-ink)", display: "flex", alignItems: "center", gap: "6px" }}>
                   Zerodha Kite Connect Credentials
                 </span>
                 <span className="form-hint">From developers.kite.trade under your created App</span>
@@ -335,7 +333,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="form-group">
               <label className="form-label" htmlFor="kite-access-token">
                 <span>Daily Access Token (Optional)</span>
-                <span style={{ fontSize: "11px", color: "#94a3b8" }}>Auto-generated by Kite Login</span>
+                <span style={{ fontSize: "12px", color: "var(--color-ink-soft)" }}>Auto-generated by Kite Login</span>
               </label>
               <div className="form-input-container">
                 <input
@@ -364,19 +362,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
             {/* Mobile & Remote Kite Session Activator */}
             <div style={{
-              background: "rgba(0, 240, 255, 0.04)",
-              border: "1px dashed rgba(0, 240, 255, 0.3)",
+              background: "color-mix(in srgb, var(--color-signal) 4%, transparent)",
+              border: "1px dashed color-mix(in srgb, var(--color-signal) 30%, transparent)",
               borderRadius: "8px",
               padding: "12px",
               marginTop: "4px"
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-                <Smartphone size={16} color="var(--color-cyan)" />
-                <span style={{ fontSize: "12px", fontWeight: 700, color: "#ffffff" }}>
+                <Smartphone size={16} color="var(--color-signal)" />
+                <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--color-ink)" }}>
                   Mobile & Remote OAuth Token Helper
                 </span>
               </div>
-              <p style={{ fontSize: "11px", color: "var(--text-muted)", marginBottom: "8px", lineHeight: "1.4" }}>
+              <p style={{ fontSize: "12px", color: "var(--color-ink-soft)", marginBottom: "8px", lineHeight: "1.4" }}>
                 If Zerodha redirects to a broken <em>localhost</em> URL on your phone, copy the entire URL or <code>request_token</code> from your mobile browser bar and paste it below:
               </p>
               
@@ -401,13 +399,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
 
               {sessionSuccessMessage && (
-                <div style={{ marginTop: "8px", fontSize: "11.5px", color: "var(--color-bull)", display: "flex", alignItems: "center", gap: "6px" }}>
+                <div style={{ marginTop: "8px", fontSize: "12px", color: "var(--color-ok)", display: "flex", alignItems: "center", gap: "6px" }}>
                   <CheckCircle2 size={14} />
                   <span>{sessionSuccessMessage}</span>
                 </div>
               )}
               {sessionErrorMessage && (
-                <div style={{ marginTop: "8px", fontSize: "11.5px", color: "var(--color-bear)", display: "flex", alignItems: "center", gap: "6px" }}>
+                <div style={{ marginTop: "8px", fontSize: "12px", color: "var(--color-bad)", display: "flex", alignItems: "center", gap: "6px" }}>
                   <AlertCircle size={14} />
                   <span>{sessionErrorMessage}</span>
                 </div>
@@ -420,18 +418,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           {/* Section 4: Office App Notifications */}
           <div style={{
-            background: "#0f1523",
+            background: "var(--color-panel)",
             padding: "16px",
             borderRadius: "12px",
-            border: "1px solid rgba(255, 255, 255, 0.1)",
+            border: "1px solid color-mix(in srgb, var(--color-ink) 10%, transparent)",
             display: "flex",
             flexDirection: "column",
             gap: "12px"
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
-                <span style={{ fontSize: "13px", fontWeight: 700, color: "#ffffff", display: "flex", alignItems: "center", gap: "6px" }}>
-                  <Bell size={15} color="var(--color-cyan)" /> Office App Notifications
+                <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--color-ink)", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <Bell size={15} color="var(--color-signal)" /> Office App Notifications
                 </span>
                 <span className="form-hint">Sends silent alerts to your phone while at work</span>
               </div>
@@ -440,7 +438,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 onClick={handleSendTest}
                 disabled={testingNotification}
                 className="btn btn-secondary"
-                style={{ padding: "5px 12px", fontSize: "11.5px", display: "flex", alignItems: "center", gap: "5px" }}
+                style={{ padding: "5px 12px", fontSize: "12px", display: "flex", alignItems: "center", gap: "5px" }}
               >
                 <Send size={12} /> {testingNotification ? "Sending..." : "Test Alerts"}
               </button>
